@@ -1,0 +1,1 @@
+python ./tools/train_radar.py configs/kradar/kradar_ResUnet.py --work_dir work_dirs/kradar_ResUnet_all

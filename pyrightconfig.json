@@ -1,0 +1,9 @@
+{
+  "exclude": [
+    "**/data",
+    "**/.crash_reports",
+    "apex",
+    "**work_dirs**",
+    ".git"
+  ]
+}
