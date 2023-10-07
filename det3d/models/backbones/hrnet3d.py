@@ -50,6 +50,8 @@ class HRNet3D(nn.Module):
             feats = torch.cat([feat1, feat2, feat3], 1)
             if self.final_fuse == 'conat_conv':
                 feats = self.final_conv(feats)
+
+        # TODO: Debug the feat transform with using DEAR as the input
         # Feature transform. 2D BEV or 3D
         if self.with_feat_transform:
             if self.feat_transform.transform_dim == '2':
@@ -60,7 +62,5 @@ class HRNet3D(nn.Module):
                 feats = self.feat_transform(feats)
                 N, C, D, H, W = feats.shape
                 feats = feats.view(N, C * D, H, W)
-        else:
-            N, C, D, H, W = feats.shape
-            feats = feats.view(N, C * D, H, W)
+
         return feats

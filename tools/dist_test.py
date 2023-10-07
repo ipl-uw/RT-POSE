@@ -58,43 +58,17 @@ viz format example:
   }]
 '''
 
-def save_pred(type_coord, class_names, pred, root, checkpoint_name, dataset_split):
-    tr_LR_tvec = np.array([2.54, -0.3, -0.7]).reshape(1, 3)
-    # TODO: make pred_new sorted by seq_name
-    pred_new = {}
-    pred_viz_format = defaultdict(dict)
-    for k, v in pred.items():
-        v_new = {}
-        for item_key, item_val in v.items():
-            v_new.update({item_key:item_val.to('cpu').numpy() if isinstance(item_val, torch.Tensor) else item_val})
-        pred_new.update({k: v_new})
-        seq, frame, rdr_frame = k.split('/')
-        frame_objs, viz_frame_objs = [], []
-        if type_coord == '1':
-            v_new['box3d'][:, 0:3] += tr_LR_tvec
-        for i in range(len(v_new['box3d'])):
-            frame_obj = {}
-            frame_obj['obj_id'] = ''
-            frame_obj['obj_type'] = class_names[int(v_new['label_preds'][i])]
-            frame_obj['score'] = float(v_new['scores'][i])
-            frame_obj['psr'] = {}
-            x, y, z, l, w, h, theta = v_new['box3d'][i].tolist()
-            frame_obj['psr']['position'] = [x, y, z]
-            frame_obj['psr']['rotation'] = [0., 0., theta]
-            frame_obj['psr']['scale'] = [l, w, h]
-            frame_objs.append(frame_obj)
-            frame_obj['psr']['position'] = {'x': x + tr_LR_tvec[0, 0], 'y': y + tr_LR_tvec[0, 1], 'z': z + tr_LR_tvec[0, 2]}
-            frame_obj['psr']['rotation'] = {'x': 0, 'y': 0, 'z': theta}
-            frame_obj['psr']['scale'] = {'x': l, 'y': w, 'z': h}
-            viz_frame_objs.append(frame_obj)
-        pred_viz_format[seq][frame] = {'objs': viz_frame_objs, 'split': dataset_split}
-        
+def save_pred(pred, root, checkpoint_name, dataset_split):
     save_pred_dir = os.path.join(root, f"{checkpoint_name}")
     os.makedirs(save_pred_dir, exist_ok=True)
-    with open(os.path.join(save_pred_dir, f"{dataset_split}_prediction.pkl"), "wb") as f:
-        pickle.dump(pred_new, f)
-    with open(os.path.join(save_pred_dir, f"{dataset_split}_prediction_viz_format.json"), "w") as f:
-        json.dump(pred_viz_format, f, indent=2)
+    # Sort pred by seq
+    result = defaultdict(dict)
+    for seq_rdr_frame, val in pred.items():
+        seq, frame, rdr_frame = seq_rdr_frame.split('/')
+        result[seq][f'{frame}_{rdr_frame}'] = val
+    with open(os.path.join(save_pred_dir, f"{dataset_split}_prediction.json"), "w") as f:
+        json.dump(result, f, indent=2)
+
 
 
 
@@ -239,36 +213,13 @@ def main():
                 model, data_batch, train_mode=False, local_rank=args.local_rank,
             )
         for output in outputs:
-            if 'token' in output['metadata']:
-                token = output["metadata"]["token"]
-                for k, v in output.items():
-                    if k not in [
-                        "metadata",
-                    ]:
-                        output[k] = v.to(cpu_device)
-                detections.update(
-                    {token: output,}
-                )
-            elif 'path' in output['metadata']:
-                label_path_parts = Path(output['metadata']['path']['path_label']).parts
-                seq_name = label_path_parts[-3]
-                sample_idx = label_path_parts[-1].split('.')[0]
-                detections.update(
-                    {f'{seq_name}/{sample_idx}': output,}
-                )
-            else:
-                seq_name = output['metadata']['seq']
-                frame_name = output['metadata']['frame']
-                rdr_frame_name = output['metadata']['rdr_frame']
-                if 'app_emb' in output:
-                    app_emb = output.pop('app_emb')
-                    # save_path = os.path.join(cfg.test_cfg.app_emb_save_path, seq_name)
-                    # os.makedirs(save_path, exist_ok=True)
-                    # np.save(os.path.join(save_path, f'{frame_name}.npy'), app_emb)
-                detections.update(
-                    {f'{seq_name}/{frame_name}/{rdr_frame_name}': output,}
-                )
-                
+            metadata = output.pop('metadata')
+            seq_name = metadata['seq']
+            frame = metadata['frame']
+            rdr_frame_name = metadata['rdr_frame']
+            detections.update(
+                {f'{seq_name}/{frame}/{rdr_frame_name}': output,}
+            )
             if args.local_rank == 0:
                 prog_bar.update()
             
@@ -293,14 +244,16 @@ def main():
         os.makedirs(args.work_dir)
 
     checkpoint_file_name = args.checkpoint.split('/')[-1].split('.')[0]
-    save_pred(cfg.DATASET.TYPE_COORD, cfg.class_names, predictions, args.work_dir, checkpoint_file_name, 'test' if args.testset else 'train')
+    save_pred(predictions, args.work_dir, checkpoint_file_name, 'test' if args.testset else 'train')
 
     result_dict, _ = dataset.evaluation(copy.deepcopy(predictions), output_dir=args.work_dir, testset=args.testset)
 
     if result_dict is not None:
         for k, v in result_dict["results"].items():
             print(f"Evaluation {k}: {v}")
-
+    if 'seq_results' in result_dict:
+        with open(os.path.join(cfg.work_dir, f"{checkpoint_file_name}_seq_results.json"), "w") as f:
+            json.dump(result_dict['seq_results'], f, indent=2)
     if args.txt_result:
         assert False, "No longer support kitti"
 

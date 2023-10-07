@@ -36,6 +36,8 @@ def gaussian_radius(det_size, min_overlap=0.5):
     r3  = (b3 + sq3) / 2
     return min(r1, r2, r3)
 
+
+
 def gaussian2D(shape, sigma=1, modulation_coef=1.):
     m, n = [(ss - 1.) / 2. for ss in shape]
     y, x = np.ogrid[-m:m+1,-n:n+1]
@@ -43,8 +45,7 @@ def gaussian2D(shape, sigma=1, modulation_coef=1.):
     h = np.exp(-(x * x + y * y) / (2 * sigma * sigma)) * modulation_coef
     h[h < np.finfo(h.dtype).eps * h.max()] = 0
     return h
-
-
+    
 def draw_umich_gaussian(heatmap, center, radius, k=1, modulation_coef=1.):
     diameter = 2 * radius + 1
     gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6, modulation_coef=modulation_coef)
@@ -62,6 +63,35 @@ def draw_umich_gaussian(heatmap, center, radius, k=1, modulation_coef=1.):
         np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
     return heatmap
 
+# Assums we have a 3D i.i.d. Gaussian distribution
+def gaussian3D(shape, sigma=1, modulation_coef=1.):
+    m, n, p = [(ss - 1.) / 2. for ss in shape]
+    z, y, x = np.ogrid[-m:m+1,-n:n+1,-p:p+1]
+    h = np.exp(-(x * x + y * y + z * z) / (2 * sigma * sigma)**(3/2)) * modulation_coef
+    h[h < np.finfo(h.dtype).eps * h.max()] = 0
+    return h
+
+def draw_gaussian3D(heatmap, center, radius, k=1, modulation_coef=1.):
+    diameter = 2 * radius + 1
+    gaussian = gaussian3D((diameter, diameter, diameter), sigma=diameter / 6, modulation_coef=modulation_coef)
+
+    x, y, z = int(center[0]), int(center[1]), int(center[2])
+
+    height, width, length = heatmap.shape[0:3]
+
+    # naming of direction is described in 3D
+    front, rear = min(x, radius), min(length - x, radius + 1)
+    right, left = min(y, radius), min(width - y, radius + 1)
+    bottom, top = min(z, radius), min(height - z, radius + 1)
+
+    masked_heatmap  = heatmap[z - bottom:z + top, y - right:y + left, x - front:x + rear]
+    masked_gaussian = gaussian[radius - bottom:radius + top, radius - right:radius + left, radius - front:radius + rear]
+    if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:
+        np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
+    return heatmap
+
+
+
 def _gather_feat(feat, ind, mask=None):
     dim  = feat.size(2)
     ind  = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)
@@ -73,8 +103,8 @@ def _gather_feat(feat, ind, mask=None):
     return feat
 
 def _transpose_and_gather_feat(feat, ind):
-    feat = feat.permute(0, 2, 3, 1).contiguous()
-    feat = feat.view(feat.size(0), -1, feat.size(3))
+    feat = feat.permute(0, 2, 3, 4, 1).contiguous()
+    feat = feat.view(feat.size(0), -1, feat.size(-1)) # BxSpacexClass
     feat = _gather_feat(feat, ind)
     return feat
 
@@ -138,3 +168,7 @@ if __name__ == '__main__':
     center = [2, 2]
     draw_umich_gaussian(hm, center, radius)
     plt.imsave('test_2d_gaussian.png', hm)
+
+if __name__ == '__main__':
+    det_size_3d = (10, 10, 10)
+    print(gaussian_radius_3d(det_size_3d))

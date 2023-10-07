@@ -5,7 +5,7 @@ if found:
     from .backbones import *  # noqa: F401,F403
 else:
     print("No spconv, sparse convolution disabled!")
-from .bbox_heads import *  # noqa: F401,F403
+from .pose_heads import *  # noqa: F401,F403
 from .builder import (
     build_backbone,
     build_detector,

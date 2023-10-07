@@ -76,6 +76,8 @@ def main():
     # update configs according to CLI args
     if args.work_dir is not None:
         cfg.work_dir = args.work_dir
+    else:
+        cfg.work_dir = os.path.join("./work_dirs", os.path.basename(args.config[:-3]), datetime.now().strftime('%Y%m%d_%H%M%S'))
     if args.resume_from is not None:
         cfg.resume_from = args.resume_from
     os.environ["CUDA_VISIBLE_DEVICES"] = cfg.cuda_device

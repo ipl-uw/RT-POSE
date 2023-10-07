@@ -5,6 +5,7 @@ from .formating import Reformat
 from .loading import *
 from .test_aug import DoubleFlip
 from .preprocess import Preprocess, Voxelization
+from .pose import *
 
 __all__ = [
     "Compose",
@@ -26,5 +27,6 @@ __all__ = [
     # the following are for kradar radar point cloud
     "PreprocessKradar",
     "VoxelizationKradar",
-    "AssignLabelLidar"
+    "AssignLabelLidar",
+    "AssignLabelPose"
 ]

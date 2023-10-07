@@ -6,7 +6,7 @@ from det3d.core.utils.center_utils import _transpose_and_gather_feat
 class RegLoss(nn.Module):
   '''Regression loss for an output tensor
     Arguments:
-      output (batch x dim x h x w)
+      output (batch x dim x h x w) or (batch x dim x h x w x d)
       mask (batch x max_objects)
       ind (batch x max_objects)
       target (batch x max_objects x dim)
@@ -19,8 +19,8 @@ class RegLoss(nn.Module):
     mask = mask.float().unsqueeze(2) 
 
     loss = F.l1_loss(pred*mask, target*mask, reduction='none')
-    loss = loss / (mask.sum() + 1e-4)
-    loss = loss.transpose(2 ,0).sum(dim=2).sum(dim=1)
+    loss = loss / (mask.sum() + 1e-4) # batch x max_objects x dim
+    loss = loss.transpose(2 ,0).sum(dim=2).sum(dim=1) # dim
     return loss
 
 class FastFocalLoss(nn.Module):
@@ -34,8 +34,8 @@ class FastFocalLoss(nn.Module):
   def forward(self, out, target, ind, mask, cat):
     '''
     Arguments:
-      out, target: B x C x H x W
-      ind, mask: B x M
+      out, target: B x C x H x W (or x D)
+      ind, mask: B x M (M is number of max objects)
       cat (category id for peaks): B x M
     '''
     mask = mask.float()

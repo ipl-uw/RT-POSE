@@ -1,6 +1,7 @@
 from .builder import build_dataset
 
 from .kradar import KRadarDataset, KRadarDataset_OLD
+from .cruw_pose import CRUW_POSE_Dataset
 
 
 # from .cityscapes import CityscapesDataset
