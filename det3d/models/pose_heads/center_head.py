@@ -335,9 +335,9 @@ class CenterHead(nn.Module):
             ys = ys.view(batch, -1, 1) + batch_reg[:, :, 1:2]
             zs = zs.view(batch, -1, 1) + batch_reg[:, :, 2:3]
 
-            xs = xs * test_cfg.out_size_factor * test_cfg.voxel_size[0] + test_cfg.pc_range[0]
-            ys = ys * test_cfg.out_size_factor * test_cfg.voxel_size[1] + test_cfg.pc_range[1]
-            zs = zs * test_cfg.out_size_factor * test_cfg.voxel_size[2] + test_cfg.pc_range[2]
+            xs = xs * test_cfg.out_size_factor[2] * test_cfg.voxel_size[0] + test_cfg.pc_range[0]
+            ys = ys * test_cfg.out_size_factor[1] * test_cfg.voxel_size[1] + test_cfg.pc_range[1]
+            zs = zs * test_cfg.out_size_factor[0] * test_cfg.voxel_size[2] + test_cfg.pc_range[2]
 
             batch_app_emb = None
             if app_emb_tasks is not None:

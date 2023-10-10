@@ -14,12 +14,13 @@ class RadarPoseNet(PoseNet):
         backbone,
         neck,
         pose_head,
+        sensor_type='rdr',
         train_cfg=None,
         test_cfg=None,
         pretrained=None,
     ):
         super(RadarPoseNet, self).__init__(
-            reader, backbone, neck, pose_head, train_cfg, test_cfg, pretrained
+            reader, backbone, sensor_type, neck, pose_head, train_cfg, test_cfg, pretrained
         )
 
     def extract_feat(self, data):
@@ -32,12 +33,13 @@ class RadarPoseNet(PoseNet):
         return x
 
     def forward(self, example, return_loss=True, **kwargs):
-        x = self.extract_feat(example)
+        example_sensor = {}
+        example_sensor.update(example[self.sensor_type])
+        example_sensor.update({'meta': example['meta']})
+        x = self.extract_feat(example_sensor)
         # TODO: add radar lidar feature cube alignment
-        preds, shared_conv_feat = self.pose_head(x)
+        preds, _ = self.pose_head(x)
         if return_loss:
-            loss_dict = self.pose_head.loss(example, preds, self.test_cfg)
-            return loss_dict
-        
+            return self.pose_head.loss(example_sensor, preds, self.test_cfg)
         else:
-            return self.pose_head.predict(example, preds, self.test_cfg)
+            return self.pose_head.predict(example_sensor, preds, self.test_cfg)

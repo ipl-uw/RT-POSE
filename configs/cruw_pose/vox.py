@@ -14,11 +14,16 @@ tasks = [
 
 class_names = list(itertools.chain(*[t["class_names"] for t in tasks]))
 
+lidar_radar_voxel_ratio = [4, 16, 32] # x, y, z
+
+
 DATASET = dict(
   DIR=dict(
     ROOT_DIR='/mnt/nas_cruw_pose',
     META_FILE='file_meta.txt',
     KEYPOINT_META='Keypoints_meta.txt',
+    CALIB='calib.json',
+    LIDAR='lidar_npy'
   ),
   LABEL= dict(
     IS_CONSIDER_ROI=True,
@@ -29,47 +34,35 @@ DATASET = dict(
     CONSIDER_RADAR_VISIBILITY=False,
   ),
   ROI = dict(
-    roi1 = {'z': [-1.0875000000000021,  4.7125], 'y': [-5.0250000000000234, 5.024999999999931], 'x': [0.7703125, 8.0203125]}
+    roi1 = {'z': [-1.8125000000000018,  3.9875], 'y': [-5.0250000000000234, 5.024999999999931], 'x': [0.7703125, 8.0203125]}
   ),
   RDR_TYPE='zyx_real', # 'zyx_real', 'dzyx_real', 'zyx_complex', 'dzyx_complex'
-  RDR_CUBE = dict(
+  LIDAR = dict(
       IS_CONSIDER_ROI=True,
       ROI_TYPE='roi1',
-      # tensor zyx of shape 16, 64, 160
-      GRID_SIZE=[0.0453125, 0.15703125, 0.3625], # [m], # [x, y, z]
-      NORMALIZING_VALUE=(150000, 200000),
-
+      GRID_SIZE=[0.0453125/lidar_radar_voxel_ratio[0], 0.15703125/lidar_radar_voxel_ratio[1], 0.3625/lidar_radar_voxel_ratio[2]], # [m], # [x, y, z]
   ),
-  DZYX = dict(
-    REDUCE_TYPE='none', # 'none', 'avg', 'max'
-    IS_CONSIDER_ROI=True,
-    GRID_SIZE=[0.0453125, 0.15703125, 0.3625], # [m],
-    NORMALIZING_VALUE=(100000, 9000000),
-  ),
-  ENABLE_SENSOR=['RADAR'],
+  ENABLE_SENSOR=['LIDAR'],
   )
 
-hr_final_conv_out = 32
 
+lidar_feature_dim=4
 # model settings
 model = dict(
-    type="RadarPoseNet",
+    type="VoxelNet",
     pretrained=None,
     reader=dict(
-        type='RadarFeatureNet',
+        type="VoxelFeatureExtractorV3",
+        num_input_features=lidar_feature_dim,
     ),
     backbone=dict(
-        type="HRNet3D",
-        backbone_cfg='hr_tiny_feat32_zyx_l4',
-        final_conv_in = 32,
-        final_conv_out = hr_final_conv_out,
-        final_fuse = 'top',
-        ds_factor=1,
+        type="SpMiddleResNetFHD", num_input_features=lidar_feature_dim, ds_factor=1
     ),
+    neck=None,
     pose_head=dict(
       type='CenterHead',
       tasks=tasks,
-      in_channels=hr_final_conv_out,
+      in_channels=64,
       share_conv_channel=32,
       dataset='cruw_pose',
       weight=0.3,
@@ -78,27 +71,20 @@ model = dict(
       common_heads={'reg': (3, 2)}, # ( 3 (x, y, z), num of conv layers),
       dcn_head=False
     ),
-    neck=None,
+    sensor_type='lidar'
 )
 
-
-
-
-
-
-# dataset settings
 dataset_type = "CRUW_POSE_Dataset"
-
-# kradar data config
-
-
-# todo: modify gussian map params
 
 target_assigner = dict(
     tasks=tasks,
 )
 
-out_size_factor = [1, 1, 1]
+# out size factor compared to the input voxel size
+out_size_factor = [8, 8, 8]
+# tensor zyx of shape 64, 128, 80
+# radar heatmap zyx of shape  16, 64, 160
+
 
 assigner = dict(
     target_assigner=target_assigner,
@@ -108,13 +94,11 @@ assigner = dict(
     min_radius=1,
     consider_radar_visibility=DATASET['LABEL']['CONSIDER_RADAR_VISIBILITY'],
 )
-
 train_cfg = dict(assigner=assigner)
-
 test_cfg_range = DATASET['ROI'][DATASET['LABEL']['ROI_TYPE']]
 test_cfg = dict(
     post_center_limit_range=[test_cfg_range['x'][0], test_cfg_range['y'][0], test_cfg_range['z'][0], \
-                             test_cfg_range['x'][1], test_cfg_range['y'][1], test_cfg_range['z'][1]], # [x_min, -y, -z, x_max, y, z] RoI
+                             test_cfg_range['x'][1], test_cfg_range['y'][1], test_cfg_range['z'][1]], # [-x, -y, -z, x, y, z] RoI
     circular_nms=True,
     nms=dict(
         use_rotate_nms=False,
@@ -126,20 +110,43 @@ test_cfg = dict(
     score_threshold=0.0,
     pc_range=[test_cfg_range['x'][0], test_cfg_range['y'][0], test_cfg_range['z'][0]],
     out_size_factor=out_size_factor,#get_downsample_factor(model)
-    voxel_size=[0.0453125, 0.15703125, 0.3625],
-    input_type='rdr_cube'
+    voxel_size=DATASET['LIDAR']['GRID_SIZE'],
+    input_type='lidar_pc'
 )
 
 
+train_preprocessor = dict(
+    mode="train",
+    pc_type='lidar_pc',
+    shuffle_points=True,
+    global_translate_std=0.5,
+    class_names=class_names,
+)
+
+val_preprocessor = dict(
+    mode="val",
+    pc_type='lidar_pc',
+    shuffle_points=False,
+)
+
+voxel_generator = dict(
+    range=(test_cfg_range['x'][0], test_cfg_range['y'][0], test_cfg_range['z'][0], \
+                             test_cfg_range['x'][1], test_cfg_range['y'][1], test_cfg_range['z'][1]),
+    voxel_size=DATASET['LIDAR']['GRID_SIZE'],
+    max_points_in_voxel=5,
+    max_voxel_num=[16000, 16000],
+)
 
 train_pipeline = [
+    dict(type="Preprocess", cfg=train_preprocessor),
+    dict(type="Voxelization", cfg=voxel_generator),
     dict(type="AssignLabelPose", cfg=train_cfg["assigner"]),
 ]
-
 test_pipeline = [
+    dict(type="Preprocess", cfg=val_preprocessor),
+    dict(type="Voxelization", cfg=voxel_generator),
     dict(type="AssignLabelPose", cfg=train_cfg["assigner"]),
 ]
-
 
 data = dict(
     samples_per_gpu=BATCH_SIZE,

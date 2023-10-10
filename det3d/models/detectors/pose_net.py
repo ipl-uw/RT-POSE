@@ -13,6 +13,7 @@ class PoseNet(BaseDetector):
         self,
         reader,
         backbone,
+        sensor_type,
         neck=None,
         pose_head=None,
         train_cfg=None,
@@ -29,6 +30,7 @@ class PoseNet(BaseDetector):
         self.test_cfg = test_cfg
 
         self.init_weights(pretrained=pretrained)
+        self.sensor_type = sensor_type
 
     def init_weights(self, pretrained=None):
         if pretrained is None:

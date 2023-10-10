@@ -25,14 +25,24 @@ class CRUW_POSE_Dataset(Dataset):
         self.split = split
         self.class_names = class_names
         self.cfg.update(class_names=class_names)
-        if self.cfg.DATASET.RDR_TYPE == 'zyx_real':
-            # Default ROI for CB (When generating CB from matlab applying interpolation)
-            self.arr_z_cb = np.arange(-5.8, 5.8, 11.6/32)
-            self.arr_y_cb = np.arange(-10.05, 10.05, 20.1/128)
-            self.arr_x_cb = np.arange(0, 11.6, 11.6/256)
-            self.is_consider_roi_rdr_cb = cfg.DATASET.RDR_CUBE.IS_CONSIDER_ROI
-            if self.is_consider_roi_rdr_cb:
-                self.consider_roi_cube(cfg.DATASET.ROI[cfg.DATASET.LABEL['ROI_TYPE']])
+        self.enable_lidar, self.enable_radar = False, False 
+        for sensor in cfg.DATASET.ENABLE_SENSOR:
+            if sensor == 'LIDAR':
+                self.enable_lidar = True
+            elif sensor == 'RADAR':
+                self.enable_radar = True
+
+        if self.enable_radar:
+            if self.cfg.DATASET.RDR_TYPE == 'zyx_real':
+                # Default ROI for CB (When generating CB from matlab applying interpolation)
+                self.arr_z_cb = np.arange(-5.8, 5.8, 11.6/32)
+                self.arr_y_cb = np.arange(-10.05, 10.05, 20.1/128)
+                self.arr_x_cb = np.arange(0, 11.6, 11.6/256)
+                self.is_consider_roi_rdr_cb = cfg.DATASET.RDR_CUBE.IS_CONSIDER_ROI
+                if self.is_consider_roi_rdr_cb:
+                    self.consider_roi_cube(cfg.DATASET.ROI[cfg.DATASET.LABEL['ROI_TYPE']])
+        if self.enable_lidar:
+            self.read_calib('lidar')
         self.read_meta()
         self.label_file = os.path.join(self.cfg.DATASET.DIR.ROOT_DIR, label_file)
         self.load_samples()
@@ -54,6 +64,14 @@ class CRUW_POSE_Dataset(Dataset):
             seq_id_to_name[seq_id] = seq_name
         self.seq_id_to_name = seq_id_to_name
 
+    def read_calib(self, sensor_type):
+        with open(os.path.join(self.cfg.DATASET.DIR.ROOT_DIR, self.cfg.DATASET.DIR.CALIB), 'r') as f:
+            calib = json.load(f)
+        if sensor_type == 'lidar':
+            self.P_L2R = np.array(calib['radar']['extrinsic']).reshape(4, 4)
+        elif sensor_type == 'left_cam':
+            self.P_L2LC = np.array(calib['left_cam']['extrinsic']).reshape(4, 4)
+            self.LC_I = np.array(calib['left_cam']['intrinsic']).reshape(3, 4)
 
     def load_samples(self):
         with open(self.label_file, 'r') as f:
@@ -77,10 +95,7 @@ class CRUW_POSE_Dataset(Dataset):
                     samples.append(sample)
         self.samples = samples
 
-            
-
-
-    def consider_roi_tesseract(self, roi_polar, is_reflect_to_cfg=True):
+    def consider_roi_polar(self, roi_polar, is_reflect_to_cfg=True):
         self.list_roi_idx = []
         deg2rad = np.pi/180.
         rad2deg = 180./np.pi
@@ -133,8 +148,8 @@ class CRUW_POSE_Dataset(Dataset):
         return True
 
 
-    def get_tesseract(self, seq, rdr_frame_id):
-        # TODO: get the preprocessed tesseract and return it.
+    def get_cube_polar(self, seq, rdr_frame_id):
+        # TODO: get radar cube in the DEAR format
         # return arr_dear
         pass
 
@@ -151,6 +166,10 @@ class CRUW_POSE_Dataset(Dataset):
         arr_cube[arr_cube < 0.] = 0.
 
         return arr_cube
+    
+    def get_pc(self, seq, frame_id, dir_name):
+        pc = np.load(os.path.join(self.cfg.DATASET.DIR.ROOT_DIR, self.seq_id_to_name[seq], dir_name, f'{frame_id}.npy'))
+        return pc
 
     def __len__(self):
         return len(self.samples)
@@ -161,9 +180,13 @@ class CRUW_POSE_Dataset(Dataset):
         dict_item = {}
         dict_item['meta'] = {'seq': sample['seq'], 'frame': sample['frame'], 'rdr_frame': sample['rdr_frame']}
         dict_item['poses'] = sample['poses']
-        dict_item['rdr_cube'] = self.get_cube(sample['seq'], sample['rdr_frame'])
+        if self.enable_radar:
+            dict_item['rdr_cube'] = self.get_cube(sample['seq'], sample['rdr_frame'])
+            dict_item['hm_size'] = (len(self.arr_z_cb), len(self.arr_y_cb), len(self.arr_x_cb))
+        if self.enable_lidar:
+            dict_item['lidar_pc'] = self.get_pc(sample['seq'], sample['frame'], self.cfg.DATASET.DIR.LIDAR)
+            dict_item['P_L2R'] = self.P_L2R
         dict_item.update(mode=self.split)
-        dict_item['hm_size'] = (len(self.arr_z_cb), len(self.arr_y_cb), len(self.arr_x_cb))
         dict_item, _ = self.pipeline(dict_item, info=self.cfg)
         return dict_item
 
@@ -171,6 +194,59 @@ class CRUW_POSE_Dataset(Dataset):
         dict_item = self.get_sample_by_idx(idx)
         return dict_item
         
+    @staticmethod
+    def collate_fn(batch_list):
+        if None in batch_list:
+            print('* Exception error (Dataset): collate_fn')
+            return None
+        enabled_sensors = []
+        if 'rdr' in batch_list[0]:
+            enabled_sensors.append('rdr')
+        if 'lidar' in batch_list[0]:
+            enabled_sensors.append('lidar')
+        ret = defaultdict(dict)
+        for sensor_type in enabled_sensors:
+            example_merged = collections.defaultdict(list)
+            for example in batch_list:
+                for k, v in example[sensor_type].items():
+                    example_merged[k].append(v)
+            for key, elems in example_merged.items():
+                if key in ["anchors", "anchors_mask", "reg_targets", "reg_weights", "labels", "hm", "anno_pose",
+                            "ind", "mask", "cat", "obj_id"]:
+                    ret[sensor_type][key] = collections.defaultdict(list)
+                    res = []
+                    for elem in elems:
+                        for idx, ele in enumerate(elem):
+                            ret[sensor_type][key][str(idx)].append(torch.tensor(ele))
+                    for kk, vv in ret[sensor_type][key].items():
+                        res.append(torch.stack(vv))
+                    ret[sensor_type][key] = res  # [task], task: (batch, num_class_in_task, feat_shape_h, feat_shape_w)
+                elif key in ["voxels", "num_points", "num_gt", "voxel_labels", "num_voxels",
+                    "cyv_voxels", "cyv_num_points", "cyv_num_voxels"]:
+                    ret[sensor_type][key] = torch.tensor(np.concatenate(elems, axis=0))
+                elif key == "points":
+                    ret[sensor_type][key] = [torch.tensor(elem) for elem in elems]
+                elif key in ["coordinates", "cyv_coordinates"]:
+                    coors = []
+                    for i, coor in enumerate(elems):
+                        coor_pad = np.pad(
+                            coor, ((0, 0), (1, 0)), mode="constant", constant_values=i
+                        )
+                        coors.append(coor_pad)
+                    ret[sensor_type][key] = torch.tensor(np.concatenate(coors, axis=0))
+                elif key in ['rdr_tensor']:
+                    elems = np.stack(elems, axis=0)
+                    ret[sensor_type][key] = torch.tensor(elems)
+                else:
+                    ret[sensor_type][key] = np.stack(elems, axis=0)
+        ret = dict(ret)
+        meta_list = []
+        for example in batch_list:
+            meta_list.append(example['meta'])
+        ret['meta'] = meta_list
+
+        return ret
+    
     def evaluation(self, detections, output_dir=None, testset=False):
         with open(self.label_file, 'r') as f:
             gt = json.load(f)
@@ -195,54 +271,3 @@ class CRUW_POSE_Dataset(Dataset):
         seq_res['ALL'] = total_results
         res['seq_results'] = seq_res
         return res, None
-    
-    @staticmethod
-    def collate_fn(batch_list):
-        if None in batch_list:
-            print('* Exception error (Dataset): collate_fn')
-            return None
-        example_merged = collections.defaultdict(list)
-        for example in batch_list:
-            if type(example) is list:
-                for subexample in example:
-                    for k, v in subexample.items():
-                        example_merged[k].append(v)
-            else:
-                for k, v in example.items():
-                    example_merged[k].append(v)
-        ret = {}
-        for key, elems in example_merged.items():
-            if key in ["anchors", "anchors_mask", "reg_targets", "reg_weights", "labels", "hm", "anno_pose",
-                        "ind", "mask", "cat", "obj_id"]:
-                ret[key] = collections.defaultdict(list)
-                res = []
-                for elem in elems:
-                    for idx, ele in enumerate(elem):
-                        ret[key][str(idx)].append(torch.tensor(ele))
-                for kk, vv in ret[key].items():
-                    res.append(torch.stack(vv))
-                ret[key] = res  # [task], task: (batch, num_class_in_task, feat_shape_h, feat_shape_w)
-            elif key in ["voxels", "num_points", "num_gt", "voxel_labels", "num_voxels",
-                   "cyv_voxels", "cyv_num_points", "cyv_num_voxels"]:
-                ret[key] = torch.tensor(np.concatenate(elems, axis=0))
-            elif key == "points":
-                ret[key] = [torch.tensor(elem) for elem in elems]
-            elif key in ["coordinates", "cyv_coordinates"]:
-                coors = []
-                for i, coor in enumerate(elems):
-                    coor_pad = np.pad(
-                        coor, ((0, 0), (1, 0)), mode="constant", constant_values=i
-                    )
-                    coors.append(coor_pad)
-                ret[key] = torch.tensor(np.concatenate(coors, axis=0))
-            elif key in ['gt_boxes_and_cls']:
-                ret[key] = torch.tensor(np.stack(elems, axis=0))
-            elif key in ['rdr_tensor']:
-                elems = np.stack(elems, axis=0)
-                ret[key] = torch.tensor(elems)
-            elif key in ['meta', 'calib_kradar']:
-                ret[key] = elems
-            else:
-                ret[key] = np.stack(elems, axis=0)
-
-        return ret

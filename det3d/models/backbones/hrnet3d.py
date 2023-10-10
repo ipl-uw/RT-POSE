@@ -39,7 +39,7 @@ class HRNet3D(nn.Module):
         
         # 3D HRNet
         x = self.backbone(x_)
-        _, _, h, w, l = x[0].size() # z y x size of a driving sene
+        _, _, h, w, l = x[0].size()
         feat1 = x[0]
         if self.final_fuse == 'top':
             feats = feat1

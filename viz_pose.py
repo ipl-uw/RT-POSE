@@ -9,7 +9,7 @@ from write_video import write_video
 
 # Util Functions
 
-def TCR(results):
+def P_RC(results):
     R_mat = np.array([[0,0,1],[-1,0,0],[0,-1,0]])
     t_vec = np.array([0.3048, 0, 0])
     R_T = np.identity(4)
@@ -29,24 +29,13 @@ def read_meta():
         seq_id_to_name[seq_id] = seq_name
     return seq_id_to_name    
 
-
-def cal_Rar2XYZ(results):
-    R_mat = [[0,0,1],[-1,0,0],[0,-1,0]]
-    cal_targets = []
-
-    for target in results:
-        cal_targets.append(np.dot(target,R_mat).tolist())
-
-    return cal_targets
-
 def keypoint_vis(results, gt, ax, seq, frame):
     ax.clear()
     skeletons = [[0, 1], [1, 2], [2, 3], [0, 4], [4, 5], [5, 6],
                 [0, 7], [7, 8], [7, 9], [9, 10], [10, 11], [7, 12], 
                 [12, 13], [13, 14]]
-    pose = np.array(cal_Rar2XYZ(results))
-    gt_pose = np.array(cal_Rar2XYZ(gt))
-    # pose = TCR(results)
+    pose = P_RC(results)
+    gt_pose = P_RC(gt)
     max_range = np.array([6, 6, 3]).max() / 2.0
     mid_x = 0.0
     mid_y = 3.0
@@ -64,8 +53,6 @@ def keypoint_vis(results, gt, ax, seq, frame):
                 [-gt_pose[skeleton[0], 1], -gt_pose[skeleton[1], 1]], 'b')                
     ax.view_init(0, -90)
     ax.set_title('%s' % pose[0].__str__() + f' {seq}/{frame}')
-    # plt.pause(0.1)
-    # plt.show()
 
 
 if __name__ == '__main__':
@@ -78,7 +65,7 @@ if __name__ == '__main__':
     with open('/mnt/nas_cruw_pose/Test.json', 'r') as f:
         gt = json.load(f)
 
-    save_root_viz_dir = '/mnt/nas_cruw_pose/pose_viz'    
+    save_root_viz_dir = '/mnt/nas_cruw_pose/pose_viz_tmp'    
     ax = plt.figure(figsize= [12,8]).add_subplot(projection='3d')
     for seq, frames in results.items():
         save_seq_viz_dir = os.path.join(save_root_viz_dir, seq_id_to_name[str(seq)])

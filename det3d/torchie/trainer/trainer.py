@@ -32,37 +32,39 @@ from .utils import (
 
 def example_to_device(example, device, non_blocking=False) -> dict:
     example_torch = {}
-    keys = list(example.keys())
-    for k in keys:
-        v = example.pop(k)
-        if k in ["anchors", "anchors_mask", "reg_targets", "reg_weights", "labels", "hm",
-                "anno_pose", "ind", "mask", 'cat', 'points', "obj_id"]:
-            example_torch[k] = [res.to(device, non_blocking=non_blocking) for res in v]
-        elif k in [
-            "voxels",
-            "bev_map",
-            "coordinates",
-            "num_points",
-            "num_voxels",
-            "cyv_voxels",
-            "cyv_num_voxels",
-            "cyv_coordinates",
-            "cyv_num_points",
-            "gt_boxes_and_cls",
-            "rdr_cube",
-            "rdr_tensor"
-        ]:
-            example_torch[k] = v.to(device, non_blocking=non_blocking)
-        elif k == "calib":
-            calib = {}
-            for k1, v1 in v.items():
-                calib[k1] = v1.to(device, non_blocking=non_blocking)
-            example_torch[k] = calib
-        else:
-            example_torch[k] = v
-        # del v
-        # print(f'del {k}')
-
+    meta_list = example.pop('meta')
+    for sensor_type, sensor_example in example.items():
+        example_torch_sensor = {}
+        keys = list(sensor_example.keys())
+        for k in keys:
+            v = sensor_example.pop(k)
+            if k in ["anchors", "anchors_mask", "reg_targets", "reg_weights", "labels", "hm",
+                    "anno_pose", "ind", "mask", 'cat', 'points', "obj_id"]:
+                example_torch_sensor[k] = [res.to(device, non_blocking=non_blocking) for res in v]
+            elif k in [
+                "voxels",
+                "bev_map",
+                "coordinates",
+                "num_points",
+                "num_voxels",
+                "cyv_voxels",
+                "cyv_num_voxels",
+                "cyv_coordinates",
+                "cyv_num_points",
+                "gt_boxes_and_cls",
+                "rdr_cube",
+                "rdr_tensor"
+            ]:
+                example_torch_sensor[k] = v.to(device, non_blocking=non_blocking)
+            elif k == "calib":
+                calib = {}
+                for k1, v1 in v.items():
+                    calib[k1] = v1.to(device, non_blocking=non_blocking)
+                example_torch_sensor[k] = calib
+            else:
+                example_torch_sensor[k] = v
+        example_torch[sensor_type] = example_torch_sensor
+    example_torch['meta'] = meta_list
     return example_torch
 
 

@@ -2,7 +2,8 @@ import argparse
 import json
 import os
 import sys
-
+from datetime import datetime
+import logging
 from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning, NumbaWarning
 import warnings
 warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
@@ -23,6 +24,7 @@ from det3d.torchie.apis import (
 )
 import torch.distributed as dist
 import subprocess
+from det3d.torchie.utils import count_parameters 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a detector")
@@ -74,14 +76,14 @@ def main():
     # update configs according to CLI args
     if args.work_dir is not None:
         cfg.work_dir = args.work_dir
+    else:
+        cfg.work_dir = os.path.join("./work_dirs", os.path.basename(args.config[:-3]), datetime.now().strftime('%Y%m%d_%H%M%S'))
     if args.resume_from is not None:
         cfg.resume_from = args.resume_from
-
     os.environ["CUDA_VISIBLE_DEVICES"] = cfg.cuda_device
     distributed = False
     if "WORLD_SIZE" in os.environ:
         distributed = int(os.environ["WORLD_SIZE"]) > 1
-
     if distributed:
         if args.launcher == "pytorch":
             torch.cuda.set_device(args.local_rank)
@@ -122,17 +124,34 @@ def main():
     if args.autoscale_lr:
         cfg.lr_config.lr_max = cfg.lr_config.lr_max * cfg.gpus
 
-    # init logger before other steps
-    logger = get_root_logger(cfg.log_level)
-    logger.info("Distributed training: {}".format(distributed))
-    logger.info(f"torch.backends.cudnn.benchmark: {torch.backends.cudnn.benchmark}")
-
     if args.local_rank == 0:
         # copy important files to backup
         backup_dir = os.path.join(cfg.work_dir, "det3d")
         os.makedirs(backup_dir, exist_ok=True)
-        # os.system("cp -r * %s/" % backup_dir)
-        # logger.info(f"Backup source files to {cfg.work_dir}/det3d")
+    # init logger before other steps
+    logger = get_root_logger(cfg.log_level)
+    # Create a file handler for outputting log messages to a file
+    current_timestamp = datetime.now()
+    log_file_handler = logging.FileHandler(os.path.join(cfg.work_dir, f'exp_{current_timestamp}.log'))
+    # Create a formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # Add the formatter to the handler
+    log_file_handler.setFormatter(formatter)
+    # Add the handler to the logger
+    logger.addHandler(log_file_handler)
+
+    # save config file to work_dir
+    if args.local_rank == 0:
+        with open(os.path.join(cfg.work_dir, f'exp_config.py'), 'w') as f:
+            f.write(cfg.text)
+
+
+    logger.info("Config")
+    logger.info(cfg.text)
+    logger.info("Distributed training: {}".format(distributed))
+    logger.info(f"torch.backends.cudnn.benchmark: {torch.backends.cudnn.benchmark}")
+
+
 
     # set random seeds
     if args.seed is not None:
@@ -140,6 +159,7 @@ def main():
         set_random_seed(args.seed)
 
     model = build_detector(cfg.model, train_cfg=cfg.train_cfg, test_cfg=cfg.test_cfg)
+    logger.info(f'Model parameter count: {count_parameters(model)}')
 
     datasets = [build_dataset(cfg.data.train)]
 
@@ -150,11 +170,15 @@ def main():
         # save det3d version, config file content and class names in
         # checkpoints as meta data
         cfg.checkpoint_config.meta = dict(
-            config=cfg.text, CLASSES=datasets[0].CLASSES
+            config=cfg.text, CLASSES=datasets[0].class_names
         )
 
     # add an attribute for visualization convenience
-    model.CLASSES = datasets[0].CLASSES
+    model.CLASSES = datasets[0].class_names
+
+    logger.info(f"model structure: {model}")
+    logger.removeHandler(log_file_handler)
+    log_file_handler.close()
     train_detector(
         model,
         datasets,
