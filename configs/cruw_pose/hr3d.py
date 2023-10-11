@@ -72,8 +72,8 @@ model = dict(
       in_channels=hr_final_conv_out,
       share_conv_channel=32,
       dataset='cruw_pose',
-      weight=0.3,
-      code_weights=[1.0, 1.0, 1.0], 
+      weight=0.2,
+      code_weights=[1.0, 1.5, 2.0], 
                     # weight of loss from common_heads (key point regression)
       common_heads={'reg': (3, 2)}, # ( 3 (x, y, z), num of conv layers),
       dcn_head=False
@@ -180,10 +180,10 @@ lr_config = dict(
     type="one_cycle", lr_max=0.001, moms=[0.95, 0.85], div_factor=10.0, pct_start=0.4,
 )
 
-checkpoint_config = dict(interval=2)
+checkpoint_config = dict(interval=5)
 # yapf:disable
 log_config = dict(
-    interval=10,
+    interval=20,
     hooks=[
         dict(type="TextLoggerHook"),
         dict(type='TensorboardLoggerHook')
@@ -191,7 +191,7 @@ log_config = dict(
 )
 # yapf:enable
 # runtime settings
-total_epochs = 30
+total_epochs = 50
 device_ids = range(1)
 dist_params = dict(backend="nccl", init_method="env://")
 log_level = "INFO"

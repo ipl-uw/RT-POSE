@@ -65,7 +65,7 @@ model = dict(
       in_channels=64,
       share_conv_channel=32,
       dataset='cruw_pose',
-      weight=0.3,
+      weight=1.0,
       code_weights=[1.0, 1.0, 1.0], 
                     # weight of loss from common_heads (key point regression)
       common_heads={'reg': (3, 2)}, # ( 3 (x, y, z), num of conv layers),
