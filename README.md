@@ -28,6 +28,14 @@ You can optionally provide the working directory. For example,
 python ./tools/train_radar.py configs/cruw_pose/hr3d.py --work_dir work_dirs/cruw_pose_debug
 ```
 
+Radar Training:
+
+configs/cruw_pose/hr3d.py
+
+LiDAR training:
+
+configs/cruw_pose/vox.py
+
 ### Test
 ```
 python ./tools/dist_test.py <config file> --work_dir <working directory> --checkpoint <checkpoint file> --testset
