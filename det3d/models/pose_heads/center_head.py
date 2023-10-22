@@ -276,9 +276,6 @@ class CenterHead(nn.Module):
         # get loss info
         rets = []
         metas = []
-
-        double_flip = test_cfg.get('double_flip', False)
-
         post_center_range = test_cfg.post_center_limit_range
         if len(post_center_range) > 0:
             post_center_range = torch.tensor(
@@ -291,66 +288,33 @@ class CenterHead(nn.Module):
             # convert N C H W L to N H W L C 
             for key, val in preds_dict.items():
                 preds_dict[key] = val.permute(0, 2, 3, 4, 1).contiguous()
-    
-            batch_size = preds_dict['hm'].shape[0]
-
-            if double_flip:
-                assert batch_size % 4 == 0, print(batch_size)
-                batch_size = int(batch_size / 4)
-                for k in preds_dict.keys():
-                    # transform the prediction map back to their original coordinate befor flipping
-                    # the flipped predictions are ordered in a group of 4. The first one is the original pointcloud
-                    # the second one is X flip pointcloud(y=-y), the third one is Y flip pointcloud(x=-x), and the last one is 
-                    # X and Y flip pointcloud(x=-x, y=-y).
-                    # Also please note that pytorch's flip function is defined on higher dimensional space, so dims=[2] means that
-                    # it is flipping along the axis with H length(which is normaly the Y axis), however in our traditional word, it is flipping along
-                    # the X axis. The below flip follows pytorch's definition yflip(y=-y) xflip(x=-x)
-                    _, H, W, C = preds_dict[k].shape
-                    preds_dict[k] = preds_dict[k].reshape(int(batch_size), 4, H, W, C)
-                    preds_dict[k][:, 1] = torch.flip(preds_dict[k][:, 1], dims=[1]) 
-                    preds_dict[k][:, 2] = torch.flip(preds_dict[k][:, 2], dims=[2])
-                    preds_dict[k][:, 3] = torch.flip(preds_dict[k][:, 3], dims=[1, 2])
 
             meta_list = example['meta']
-
-                    
-
-
             batch_hm = torch.sigmoid(preds_dict['hm'])
-
             batch_reg = preds_dict['reg']
-
-
             batch, H, W, L, num_cls = batch_hm.size()
-
-            batch_reg = batch_reg.reshape(batch, H*W*L, 3)
+            batch_reg = batch_reg.reshape(batch, H*W*L, -1) # last dim could be 3 or 45
             batch_hm = batch_hm.reshape(batch, H*W*L, num_cls)
-
+            num_keypoints_reg = batch_reg.shape[-1] // 3
+            batch_pts_preds = []
             zs, ys, xs = torch.meshgrid([torch.arange(0, H), torch.arange(0, W), torch.arange(0, L)])
-            zs = zs.view(1, H, W, L).repeat(batch, 1, 1, 1).to(batch_hm)
-            ys = ys.view(1, H, W, L).repeat(batch, 1, 1, 1).to(batch_hm)
-            xs = xs.view(1, H, W, L).repeat(batch, 1, 1, 1).to(batch_hm)
-
-            xs = xs.view(batch, -1, 1) + batch_reg[:, :, 0:1]
-            ys = ys.view(batch, -1, 1) + batch_reg[:, :, 1:2]
-            zs = zs.view(batch, -1, 1) + batch_reg[:, :, 2:3]
-
-            xs = xs * test_cfg.out_size_factor[2] * test_cfg.voxel_size[0] + test_cfg.pc_range[0]
-            ys = ys * test_cfg.out_size_factor[1] * test_cfg.voxel_size[1] + test_cfg.pc_range[1]
-            zs = zs * test_cfg.out_size_factor[0] * test_cfg.voxel_size[2] + test_cfg.pc_range[2]
-
+            zs = zs.view(1, H, W, L).repeat(batch, 1, 1, 1).to(batch_hm).view(batch, -1, 1)
+            ys = ys.view(1, H, W, L).repeat(batch, 1, 1, 1).to(batch_hm).view(batch, -1, 1)
+            xs = xs.view(1, H, W, L).repeat(batch, 1, 1, 1).to(batch_hm).view(batch, -1, 1)
+            for i in range(num_keypoints_reg):
+                xs_i = xs + batch_reg[:, :, 3*i:3*i+1]
+                ys_i = ys + batch_reg[:, :, 3*i+1:3*i+2]
+                zs_i = zs + batch_reg[:, :, 3*i+2:3*i+3]
+                xs_i = xs_i * test_cfg.out_size_factor[2] * test_cfg.voxel_size[0] + test_cfg.pc_range[0]
+                ys_i = ys_i * test_cfg.out_size_factor[1] * test_cfg.voxel_size[1] + test_cfg.pc_range[1]
+                zs_i = zs_i * test_cfg.out_size_factor[0] * test_cfg.voxel_size[2] + test_cfg.pc_range[2]
+                batch_pts_preds += [xs_i, ys_i, zs_i]
             batch_app_emb = None
             if app_emb_tasks is not None:
                 batch_app_emb = app_emb_tasks[task_id].permute(0, 2, 3, 1).contiguous().reshape(batch, H*W, -1)
-
-            batch_pts_preds = torch.cat([xs, ys, zs], dim=2)
-
+            batch_pts_preds = torch.cat(batch_pts_preds, dim=2)
             metas.append(meta_list)
-
-            if test_cfg.get('per_class_nms', False):
-                raise NotImplementedError()
-            else:
-                rets.append(self.post_processing(batch_pts_preds, batch_hm, test_cfg, post_center_range, task_id, batch_app_emb)) 
+            rets.append(self.post_processing(batch_pts_preds, batch_hm, test_cfg, post_center_range, task_id, batch_app_emb)) 
 
         # Merge tasks results
         num_samples = len(rets[0])
@@ -369,16 +333,27 @@ class CenterHead(nn.Module):
     def post_processing(self, batch_pts_preds, batch_hm, test_cfg, post_center_range, task_id, batch_app_emb=None):
         batch_size = len(batch_hm)
         prediction_pose_batches = []
+        num_keypoints_reg = batch_pts_preds.shape[-1] // 3
         for i in range(batch_size):
             pts_preds = batch_pts_preds[i]
             hm_preds = batch_hm[i]
             predicted_key_points = [] # (keypoint_id, x, y, z, score)
-            for i in range(hm_preds.shape[-1]):
-                label = i
-                ind = torch.argmax(hm_preds[:, i])
-                score = hm_preds[:, i][ind]
-                if score > test_cfg.score_threshold:
-                    predicted_key_points.append((label, *pts_preds[ind].cpu().tolist(), score.cpu().item()))
+            if num_keypoints_reg == 1:
+                for i in range(hm_preds.shape[-1]):
+                    label = i
+                    ind = torch.argmax(hm_preds[:, i])
+                    score = hm_preds[:, i][ind]
+                    if score > test_cfg.score_threshold:
+                        predicted_key_points.append((label, *pts_preds[ind].cpu().tolist(), score.cpu().item()))
+            else:
+                ind = torch.argmax(hm_preds[:, 0])
+                center_score = hm_preds[:, 0][ind].cpu().item()
+                key_pts_pose = pts_preds[ind].cpu().tolist()
+                if center_score > test_cfg.score_threshold:
+                    predicted_key_points.append((0, *key_pts_pose[:3], center_score))
+                for i in range(1, 15):
+                    predicted_key_points.append((i, *key_pts_pose[3*i:3*(i+1)], center_score))
+
             # TODO: add more post-processing
             prediction_pose_batches.append(predicted_key_points)
 

@@ -5,5 +5,6 @@ __all__ = [
     "Compose",
     "Preprocess",
     "Voxelization",
-    "AssignLabelPose"
+    "AssignLabelPose",
+    "AssignLabelPose2"
 ]

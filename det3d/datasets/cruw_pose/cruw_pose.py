@@ -33,7 +33,8 @@ class CRUW_POSE_Dataset(Dataset):
                 self.enable_radar = True
 
         if self.enable_radar:
-            if self.cfg.DATASET.RDR_TYPE == 'zyx_real':
+            self.rdr_path_name = 'npy_DZYX_complex' if 'd' in self.cfg.DATASET.RDR_TYPE else 'npy'
+            if 'zyx_real' in self.cfg.DATASET.RDR_TYPE:
                 # Default ROI for CB (When generating CB from matlab applying interpolation)
                 self.arr_z_cb = np.arange(-5.8, 5.8, 11.6/32)
                 self.arr_y_cb = np.arange(-10.05, 10.05, 20.1/128)
@@ -41,6 +42,9 @@ class CRUW_POSE_Dataset(Dataset):
                 self.is_consider_roi_rdr_cb = cfg.DATASET.RDR_CUBE.IS_CONSIDER_ROI
                 if self.is_consider_roi_rdr_cb:
                     self.consider_roi_cube(cfg.DATASET.ROI[cfg.DATASET.LABEL['ROI_TYPE']])
+                # self.rdr_to_real = True if 'd' in self.cfg.DATASET.RDR_TYPE else False
+                self.rdr_to_real = False
+            self.rad_normalize_values = cfg.DATASET.DZYX.NORMALIZING_VALUE if 'd' in self.cfg.DATASET.RDR_TYPE else cfg.DATASET.RDR_CUBE.NORMALIZING_VALUE
         if self.enable_lidar:
             self.read_calib('lidar')
         self.read_meta()
@@ -79,12 +83,8 @@ class CRUW_POSE_Dataset(Dataset):
         samples = []
         for seq, seq_frames in samples_by_seq.items():
             # TODO: remove the below line in the future
-            # if self.seq_id_to_name[seq] not in ['2023_0718_1642', '2023_0724_1553', '2023_0725_1559', '2023_0725_1600', \
-            #                '2023_0725_1602', '2023_0725_1603', '2023_0725_1604', '2023_0725_1714', \
-            #                 '2023_0725_1716', '2023_0726_1602', '2023_0726_1619', '2023_0726_1620', \
-            #                     '2023_0730_1240', '2023_0730_1242', '2023_0730_1245', '2023_0730_1316', \
-            #                         '2023_0730_1321', '2023_0730_1331', '2023_0730_1332']:
-            #     continue
+            if self.seq_id_to_name[seq] in ['2023_0718_1642', '2023_0726_1602', '2023_0726_1619', '2023_0726_1620']:
+                continue
             for frame, frame_objs in seq_frames.items():
                 sample = {}
                 sample['seq'] = seq
@@ -155,12 +155,17 @@ class CRUW_POSE_Dataset(Dataset):
 
         
     def get_cube(self, seq, rdr_frame_id):
-        arr_cube = np.load(os.path.join(self.cfg.DATASET.DIR.ROOT_DIR, self.seq_id_to_name[seq], 'radar', 'npy', f'{rdr_frame_id}.npy'))
-        norm_vals = [float(norm_val) for norm_val in self.cfg.DATASET.RDR_CUBE.NORMALIZING_VALUE]
+        arr_cube = np.load(os.path.join('/mnt/ssd3/nas_cruw_pose', self.seq_id_to_name[seq], 'DZYX_npy_f16', f'{rdr_frame_id}.npy')).astype(np.float32)
+        if self.rdr_to_real:
+            arr_cube = np.abs(arr_cube)
+        norm_vals = [float(norm_val) for norm_val in self.rad_normalize_values]
         norm_start, norm_scale = norm_vals[0], norm_vals[1]-norm_vals[0]
         # RoI selection
         idx_z_min, idx_z_max, idx_y_min, idx_y_max, idx_x_min, idx_x_max = self.list_roi_idx_cb
-        arr_cube = arr_cube[idx_z_min:idx_z_max+1,idx_y_min:idx_y_max+1,idx_x_min:idx_x_max+1]
+        if 'd' in self.cfg.DATASET.RDR_TYPE:
+            arr_cube = arr_cube[:, idx_z_min:idx_z_max+1,idx_y_min:idx_y_max+1,idx_x_min:idx_x_max+1]
+        else:
+            arr_cube = arr_cube[idx_z_min:idx_z_max+1,idx_y_min:idx_y_max+1,idx_x_min:idx_x_max+1]
         # normalize
         arr_cube = (arr_cube - norm_start) / norm_scale
         arr_cube[arr_cube < 0.] = 0.
@@ -261,8 +266,8 @@ class CRUW_POSE_Dataset(Dataset):
         seq_res = {}
         for seq, mpjpe_list in seq_mpjpe.items():
             seq_res[self.seq_id_to_name[seq]] = {}
-            seq_res[self.seq_id_to_name[seq]]['MPJPE'] = np.mean(mpjpe_list)
-            seq_res[self.seq_id_to_name[seq]]['ABS_MPJPE'] = np.mean(seq_abs_mpjpe[seq])
+            seq_res[self.seq_id_to_name[seq]]['MPJPE'] = np.mean(mpjpe_list) * 1000
+            seq_res[self.seq_id_to_name[seq]]['ABS_MPJPE'] = np.mean(seq_abs_mpjpe[seq]) * 1000
         res = {}
         total_results = {}
         total_results['MPJPE'] = np.mean([v['MPJPE'] for k, v in seq_res.items()])

@@ -59,13 +59,24 @@ viz format example:
 '''
 
 def save_pred(pred, root, checkpoint_name, dataset_split):
+    with open(os.path.join('/mnt/nas_cruw_pose/file_meta.txt'), 'r') as f:
+        lines = f.readlines()
+    seq_id_to_name = {}
+    for line in lines:
+        seq_id, seq_name = line.strip().split(',')
+        seq_id_to_name[seq_id] = seq_name
+
     save_pred_dir = os.path.join(root, f"{checkpoint_name}")
     os.makedirs(save_pred_dir, exist_ok=True)
     # Sort pred by seq
     result = defaultdict(dict)
     for seq_rdr_frame, val in pred.items():
         seq, frame, rdr_frame = seq_rdr_frame.split('/')
-        result[seq][f'{frame}_{rdr_frame}'] = val
+        result[seq_id_to_name[seq]][f'{frame}_{rdr_frame}'] = val
+    # sort result by seq name, and sort each seq by frame
+    result = dict(sorted(result.items(), key=lambda x: x[0]))
+    for seq, frames in result.items():
+        result[seq] = dict(sorted(frames.items(), key=lambda x: int(x[0].split('_')[0])))
     with open(os.path.join(save_pred_dir, f"{dataset_split}_prediction.json"), "w") as f:
         json.dump(result, f, indent=2)
 
@@ -78,9 +89,9 @@ def save_pred(pred, root, checkpoint_name, dataset_split):
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a detector")
     parser.add_argument("config", help="train config file path")
-    parser.add_argument("--work_dir", required=True, help="the dir to save logs and models")
+    parser.add_argument("--work_dir", help="the dir to save logs and models")
     parser.add_argument(
-        "--checkpoint", help="the dir to checkpoint which the model read from"
+        "--checkpoint", required=True, help="the dir to checkpoint which the model read from"
     )
     parser.add_argument(
         "--txt_result",
@@ -126,6 +137,10 @@ def main():
     # update configs according to CLI args
     if args.work_dir is not None:
         cfg.work_dir = args.work_dir
+    else:
+        args.work_dir = os.path.dirname(args.checkpoint)
+        cfg.work_dir = args.work_dir
+
     os.environ["CUDA_VISIBLE_DEVICES"] = cfg.cuda_device
     distributed = False
     if "WORLD_SIZE" in os.environ:
@@ -252,10 +267,12 @@ def main():
         for k, v in result_dict["results"].items():
             print(f"Evaluation {k}: {v}")
     if 'seq_results' in result_dict:
-        with open(os.path.join(cfg.work_dir, f"{checkpoint_file_name}_seq_results.json"), "w") as f:
-            json.dump(result_dict['seq_results'], f, indent=2)
+        with open(os.path.join(os.path.join(args.work_dir, checkpoint_file_name),\
+                                f"{checkpoint_file_name}_seq_results_{'test' if args.testset else 'train'}.json"), "w") as f:
+            json.dump(dict(sorted(result_dict['seq_results'].items())), f, indent=2)
     if args.txt_result:
         assert False, "No longer support kitti"
 
 if __name__ == "__main__":
     main()
+ 

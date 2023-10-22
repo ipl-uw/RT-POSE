@@ -67,9 +67,11 @@ def example_to_device(example, device, non_blocking=False) -> dict:
     example_torch['meta'] = meta_list
     return example_torch
 
-
+# 15 keypoints x y z offset relative to the pelvis voxel's center
+loc_loss_elem_names = []
+for i in range(15):
+    loc_loss_elem_names += [f'coor_x_offset_{i}', f'coor_y_offset_{i}', f'coor_z_offset_{i}']
 def parse_second_losses(losses):
-    loc_loss_elem_names = ['coor_x_offset', 'coor_y_offset', 'coor_z_offset']
     log_vars = OrderedDict()
     loss = sum(losses["loss"])
     for loss_name, loss_value in losses.items():
@@ -159,6 +161,7 @@ class Trainer(object):
         work_dir=None,
         log_level=logging.INFO,
         logger=None,
+        enable_amp=False,
         **kwargs,
     ):
         assert callable(batch_processor)
@@ -198,6 +201,9 @@ class Trainer(object):
         self._inner_iter = 0
         self._max_epochs = 0
         self._max_iters = 0
+        self.enable_amp = enable_amp
+        self.scaler = torch.cuda.amp.GradScaler(enabled=enable_amp)
+
 
     @property
     def model_name(self):
@@ -357,7 +363,7 @@ class Trainer(object):
         filepath = osp.join(out_dir, filename)
         linkpath = osp.join(out_dir, "latest.pth")
         optimizer = self.optimizer if save_optimizer else None
-        save_checkpoint(self.model, filepath, optimizer=optimizer, meta=meta)
+        save_checkpoint(self.model, filepath, optimizer=optimizer, meta=meta, scaler=self.scaler if self.enable_amp else None)
         # Use relative symlink
         torchie.symlink(filename, linkpath)
 
@@ -376,10 +382,10 @@ class Trainer(object):
         self.call_hook("after_data_to_device")
 
         if train_mode:
-            losses = model(example, return_loss=True)
-            self.call_hook("after_forward")
-            loss, log_vars = parse_second_losses(losses)
-
+            with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=self.enable_amp):
+                losses = model(example, return_loss=True)
+                self.call_hook("after_forward")
+                loss, log_vars = parse_second_losses(losses)
             outputs = dict(
                 loss=loss, log_vars=log_vars, num_samples=-1  # TODO: FIX THIS
             )
@@ -391,7 +397,6 @@ class Trainer(object):
 
 # the code do the training
     def train(self, data_loader, epoch, **kwargs):
-
         self.model.train()
         self.mode = "train"
         self.data_loader = data_loader
@@ -400,11 +405,6 @@ class Trainer(object):
         self.call_hook("before_train_epoch")
         base_step = epoch * self.length
         
-        # debug
-        # data = data_loader.dataset[0]
-
-        # prefetcher = Prefetcher(data_loader)
-        # for data_batch in BackgroundGenerator(data_loader, max_prefetch=3):
         for i, data_batch in enumerate(data_loader):
             global_step = base_step + i
             if self.lr_scheduler is not None:
@@ -503,6 +503,8 @@ class Trainer(object):
         self._iter = checkpoint["meta"]["iter"]
         if "optimizer" in checkpoint and resume_optimizer:
             self.optimizer.load_state_dict(checkpoint["optimizer"])
+        if 'scaler' in checkpoint and self.enable_amp:
+            self.scaler.load_state_dict(checkpoint['scaler'])
 
         self.logger.info("resumed epoch %d, iter %d", self.epoch, self.iter)
 

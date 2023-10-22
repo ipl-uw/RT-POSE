@@ -232,7 +232,7 @@ def weights_to_cpu(state_dict):
     return state_dict_cpu
 
 
-def save_checkpoint(model, filename, optimizer=None, meta=None):
+def save_checkpoint(model, filename, optimizer=None, meta=None, scaler=None):
     """Save checkpoint to file.
 
     The checkpoint will have 3 fields: ``meta``, ``state_dict`` and
@@ -252,9 +252,9 @@ def save_checkpoint(model, filename, optimizer=None, meta=None):
     torchie.mkdir_or_exist(osp.dirname(filename))
     if hasattr(model, "module"):
         model = model.module
-
     checkpoint = {"meta": meta, "state_dict": weights_to_cpu(model.state_dict())}
     if optimizer is not None:
         checkpoint["optimizer"] = optimizer.state_dict()
-
+    if scaler is not None:
+        checkpoint["scaler"] = scaler.state_dict()
     torch.save(checkpoint, filename)

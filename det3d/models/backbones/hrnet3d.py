@@ -45,9 +45,10 @@ class HRNet3D(nn.Module):
             feats = feat1
             feats = self.final_conv(feats)
         else:
-            feat2 = F.interpolate(x[1], size=(h, w, l), mode="trilinear", align_corners=True)
-            feat3 = F.interpolate(x[2], size=(h, w, l), mode="trilinear", align_corners=True)
-            feats = torch.cat([feat1, feat2, feat3], 1)
+            upsampled_feats = []
+            for i in range(1, len(x)):
+                upsampled_feats.append(F.interpolate(x[i], size=(h, w, l), mode="trilinear", align_corners=True))
+            feats = torch.cat([feat1, *upsampled_feats], 1)
             if self.final_fuse == 'conat_conv':
                 feats = self.final_conv(feats)
 

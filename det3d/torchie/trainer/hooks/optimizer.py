@@ -1,10 +1,9 @@
 from torch.nn.utils import clip_grad
-
 from .hook import Hook
-
+import torch
 
 class OptimizerHook(Hook):
-    def __init__(self, grad_clip=None):
+    def __init__(self, grad_clip=None, enable_amp=False):
         self.grad_clip = grad_clip
 
     def clip_grads(self, params):
@@ -13,9 +12,13 @@ class OptimizerHook(Hook):
         )
 
     def after_train_iter(self, trainer):
+        if not torch.isfinite(trainer.outputs['loss']):
+            trainer.logger.CRITICAL('The loss DIVERGED')
+            return
         trainer.optimizer.zero_grad()
-        # print(trainer.outputs["loss"])
-        trainer.outputs["loss"].backward()
+        trainer.scaler.scale(trainer.outputs["loss"]).backward()
         if self.grad_clip is not None:
+            trainer.scaler.unscale_(trainer.optimizer)
             self.clip_grads(trainer.model.parameters())
-        trainer.optimizer.step()
+        trainer.scaler.step(trainer.optimizer)
+        trainer.scaler.update()

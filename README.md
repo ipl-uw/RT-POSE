@@ -45,3 +45,9 @@ If you want to evaluate on the validation set, you just discard the `--testset` 
 For more details about the command options, please execute the scripts with `-h`.
 
 
+
+### TODO
+
+
+#### Distributed Training
+[] Enable AMP
