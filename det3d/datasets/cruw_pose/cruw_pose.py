@@ -255,23 +255,34 @@ class CRUW_POSE_Dataset(Dataset):
     def evaluation(self, detections, output_dir=None, testset=False):
         with open(self.label_file, 'r') as f:
             gt = json.load(f)
-        seq_mpjpe = defaultdict(list)
-        seq_abs_mpjpe = defaultdict(list)
+        seq_mpjpe = defaultdict(list) # each element is 1d np array of mpjpe for each keypoint
+        seq_abs_mpjpe = defaultdict(list) # each element is 1d np array of absmpjpe for each keypoint
         for seq_frame_rdr_frame, val in detections.items():
             seq, frame, rdr_frame = seq_frame_rdr_frame.split('/')
             gt_points = gt[seq][frame][0]['pose']
             keypoints = [point[1:4] for point in val['keypoints']]
-            seq_mpjpe[seq].append(MPJPE(np.array(keypoints), np.array(gt_points)))
-            seq_abs_mpjpe[seq].append(ABS_MPJPE(np.array(keypoints), np.array(gt_points)))
+
+            seq_mpjpe[seq].append(PJPE(np.array(keypoints), np.array(gt_points)))
+            seq_abs_mpjpe[seq].append(ABS_PJPE(np.array(keypoints), np.array(gt_points)))
         seq_res = {}
-        for seq, mpjpe_list in seq_mpjpe.items():
+        for seq, mpjpes in seq_mpjpe.items():
             seq_res[self.seq_id_to_name[seq]] = {}
-            seq_res[self.seq_id_to_name[seq]]['MPJPE'] = np.mean(mpjpe_list) * 1000
-            seq_res[self.seq_id_to_name[seq]]['ABS_MPJPE'] = np.mean(seq_abs_mpjpe[seq]) * 1000
+            mpjpes = np.array(mpjpes)
+            abs_mpjpes = np.array(seq_abs_mpjpe[seq])
+            mpjpes_per_joint = np.mean(mpjpes, axis=0) * 1000
+            abs_mpjpes_per_joint = np.mean(abs_mpjpes, axis=0) * 1000
+            seq_res[self.seq_id_to_name[seq]]['MPJPE'] = np.mean(mpjpes_per_joint) * 1000
+            seq_res[self.seq_id_to_name[seq]]['ABS_MPJPE'] = np.mean(abs_mpjpes_per_joint) * 1000
+            for joint_idx in mpjpes_per_joint.shape[0]:
+                seq_res[self.seq_id_to_name[seq]][f'PJPE_{joint_idx}'] = mpjpes_per_joint[joint_idx]
+                seq_res[self.seq_id_to_name[seq]][f'ABS_PJPE_{joint_idx}'] = abs_mpjpes_per_joint[joint_idx]
         res = {}
         total_results = {}
         total_results['MPJPE'] = np.mean([v['MPJPE'] for k, v in seq_res.items()])
         total_results['ABS_MPJPE'] = np.mean([v['ABS_MPJPE'] for k, v in seq_res.items()])
+        for i in range(15):
+            total_results[f'PJPE_{i}'] = np.mean([v[f'PJPE_{i}'] for k, v in seq_res.items()])
+            total_results[f'ABS_PJPE_{i}'] = np.mean([v[f'ABS_PJPE_{i}'] for k, v in seq_res.items()])
         res['results'] = total_results
         seq_res['ALL'] = total_results
         res['seq_results'] = seq_res

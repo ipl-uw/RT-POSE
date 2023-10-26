@@ -1,10 +1,11 @@
 import numpy as np
 from numpy.linalg import norm
 
-def MPJPE(pred, gt):
+# pred: Nx3, gt: Nx3
+def PJPE(pred, gt) -> np.ndarray:
     pred -= pred[:1, :]
     gt -= gt[:1, :]
-    return ABS_MPJPE(pred, gt)
+    return ABS_PJPE(pred, gt)
 
-def ABS_MPJPE(pred, gt):
-    return norm(pred - gt, axis=-1).mean()
+def ABS_PJPE(pred, gt):
+    return norm(pred - gt, axis=-1)
