@@ -271,9 +271,9 @@ class CRUW_POSE_Dataset(Dataset):
             abs_mpjpes = np.array(seq_abs_mpjpe[seq])
             mpjpes_per_joint = np.mean(mpjpes, axis=0) * 1000
             abs_mpjpes_per_joint = np.mean(abs_mpjpes, axis=0) * 1000
-            seq_res[self.seq_id_to_name[seq]]['MPJPE'] = np.mean(mpjpes_per_joint) * 1000
-            seq_res[self.seq_id_to_name[seq]]['ABS_MPJPE'] = np.mean(abs_mpjpes_per_joint) * 1000
-            for joint_idx in mpjpes_per_joint.shape[0]:
+            seq_res[self.seq_id_to_name[seq]]['MPJPE'] = np.mean(mpjpes_per_joint)
+            seq_res[self.seq_id_to_name[seq]]['ABS_MPJPE'] = np.mean(abs_mpjpes_per_joint)
+            for joint_idx in range(mpjpes_per_joint.shape[0]):
                 seq_res[self.seq_id_to_name[seq]][f'PJPE_{joint_idx}'] = mpjpes_per_joint[joint_idx]
                 seq_res[self.seq_id_to_name[seq]][f'ABS_PJPE_{joint_idx}'] = abs_mpjpes_per_joint[joint_idx]
         res = {}
