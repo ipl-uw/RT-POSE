@@ -172,6 +172,15 @@ class CRUW_POSE_Dataset(Dataset):
 
         return arr_cube
     
+
+    def get_cube_phase(self, seq, rdr_frame_id):
+        arr_cube = np.load(os.path.join('/mnt/ssd3/cruw_pose', self.seq_id_to_name[seq], 'DZYX_npy_f16_complex', f'{rdr_frame_id}.npy')).astype(np.float32)
+        # RoI selection
+        idx_z_min, idx_z_max, idx_y_min, idx_y_max, idx_x_min, idx_x_max = self.list_roi_idx_cb
+        arr_cube = arr_cube[:, :, idx_z_min:idx_z_max+1,idx_y_min:idx_y_max+1,idx_x_min:idx_x_max+1]
+        # data has been normalized
+        return arr_cube
+    
     def get_pc(self, seq, frame_id, dir_name):
         pc = np.load(os.path.join(self.cfg.DATASET.DIR.ROOT_DIR, self.seq_id_to_name[seq], dir_name, f'{frame_id}.npy'))
         return pc
@@ -186,7 +195,7 @@ class CRUW_POSE_Dataset(Dataset):
         dict_item['meta'] = {'seq': sample['seq'], 'frame': sample['frame'], 'rdr_frame': sample['rdr_frame']}
         dict_item['poses'] = sample['poses']
         if self.enable_radar:
-            dict_item['rdr_cube'] = self.get_cube(sample['seq'], sample['rdr_frame'])
+            dict_item['rdr_cube'] = self.get_cube_phase(sample['seq'], sample['rdr_frame'])
             dict_item['hm_size'] = (len(self.arr_z_cb), len(self.arr_y_cb), len(self.arr_x_cb))
         if self.enable_lidar:
             dict_item['lidar_pc'] = self.get_pc(sample['seq'], sample['frame'], self.cfg.DATASET.DIR.LIDAR)

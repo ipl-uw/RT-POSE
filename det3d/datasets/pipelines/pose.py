@@ -165,6 +165,10 @@ class AssignLabelPose(object):
             rdr_tensor = res['rdr_cube']
             if len(rdr_tensor.shape) < 4:
                 rdr_tensor = np.expand_dims(rdr_tensor, axis=0) # (1, Z, Y, X)
+            # TODO: come up with better modeling of phase information
+            elif len(rdr_tensor.shape) > 4:
+                rdr_tensor = rdr_tensor.reshape(-1, *list(rdr_tensor.shape)[2:]) #  (2, D, Z, Y, X)-> (2D, Z, Y, X)
+
             rdr_res.update(rdr_tensor=rdr_tensor)
         if 'lidar' in res:
             lidar_res = {}
@@ -362,6 +366,8 @@ class AssignLabelPose2(object):
             rdr_tensor = res['rdr_cube']
             if len(rdr_tensor.shape) < 4:
                 rdr_tensor = np.expand_dims(rdr_tensor, axis=0) # (1, Z, Y, X)
+            elif len(rdr_tensor.shape) > 4:
+                rdr_tensor = rdr_tensor.reshape(-1, *list(rdr_tensor.shape)[2:]) #  (2, D, Z, Y, X)-> (2D, Z, Y, X)
             rdr_res.update(rdr_tensor=rdr_tensor)
         if 'lidar' in res:
             lidar_res = {}

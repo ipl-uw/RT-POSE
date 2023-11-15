@@ -5,7 +5,7 @@ from det3d.utils.config_tool import get_downsample_factor
 from math import ceil
 import numpy as np
 
-BATCH_SIZE=16
+BATCH_SIZE=1
 
 tasks = [
     dict(num_class=1, class_names=["Pelvis"]),
@@ -30,25 +30,28 @@ DATASET = dict(
   ROI = dict(
     roi1 = {'z': [-1.0875000000000021,  4.7125], 'y': [-5.0250000000000234, 5.024999999999931], 'x': [0.7703125, 8.0203125]}
   ),
-  RDR_TYPE='zyx_real', # 'zyx_real', 'dzyx_real', 'zyx_complex', 'dzyx_complex'
+  RDR_TYPE='dzyx_real', # 'zyx_real', 'dzyx_real', 'zyx_complex', 'dzyx_complex'
   RDR_CUBE = dict(
       IS_CONSIDER_ROI=True,
       ROI_TYPE='roi1',
       # tensor zyx of shape 16, 64, 160
       GRID_SIZE=[0.0453125, 0.15703125, 0.3625], # [m], # [x, y, z]
       NORMALIZING_VALUE=(150000, 200000),
-
   ),
   DZYX = dict(
-    REDUCE_TYPE='none', # 'none', 'avg', 'max'
     IS_CONSIDER_ROI=True,
-    GRID_SIZE=[0.0453125, 0.15703125, 0.3625], # [m],
-    NORMALIZING_VALUE=(100000, 9000000),
+    ROI_TYPE='roi1',
+    # tensor zyx of shape 16, 64, 160
+    GRID_SIZE=[0.0453125, 0.15703125, 0.3625], # [m], # [x, y, z]
+    NORMALIZING_VALUE=(0., 10.),
+    REDUCE_TYPE='none', # 'none', 'avg', 'max'
   ),
   ENABLE_SENSOR=['RADAR'],
   )
 
-hr_final_conv_out = 128
+# rad_preprocess: 100000000, 1
+
+hr_final_conv_out = 256
 
 # model settings
 model = dict(
@@ -59,8 +62,8 @@ model = dict(
     ),
     backbone=dict(
         type="HRNet3D",
-        backbone_cfg='hr_tiny_feat32_zyx_l4',
-        final_conv_in = sum([32, 32, 64, 64]),
+        backbone_cfg='hr_tiny_feat64_zyx_l4_in64',
+        final_conv_in = sum([64, 64, 128, 128]),
         final_conv_out = hr_final_conv_out,
         final_fuse = 'conat_conv',
         ds_factor=1,
@@ -69,9 +72,9 @@ model = dict(
       type='CenterHead',
       tasks=tasks,
       in_channels=hr_final_conv_out,
-      share_conv_channel=128,
+      share_conv_channel=256,
       dataset='cruw_pose',
-      weight=0.1,
+      weight=0.7,
       code_weights=np.ones(45).tolist(), 
                     # weight of loss from common_heads (key point regression)
       common_heads={'reg': (45, 2)}, # ( 45  15 keypoints' (x, y, z), num of conv layers),
@@ -79,11 +82,6 @@ model = dict(
     ),
     neck=None,
 )
-
-
-
-
-
 
 # dataset settings
 dataset_type = "CRUW_POSE_Dataset"
@@ -176,7 +174,7 @@ optimizer = dict(
     type="adam", amsgrad=0.0, wd=0.01, fixed_wd=True, moving_average=False,
 )
 lr_config = dict(
-    type="one_cycle", lr_max=0.001, moms=[0.95, 0.85], div_factor=10.0, pct_start=0.4,
+    type="one_cycle", lr_max=0.002, moms=[0.95, 0.85], div_factor=10.0, pct_start=0.4,
 )
 
 checkpoint_config = dict(interval=5)
@@ -200,3 +198,4 @@ resume_from = None
 workflow = [('train', 1)]
 
 cuda_device = '0'
+enable_amp=False

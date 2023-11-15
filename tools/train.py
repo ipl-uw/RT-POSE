@@ -80,7 +80,7 @@ def main():
         cfg.work_dir = os.path.join("./work_dirs", os.path.basename(args.config[:-3]), datetime.now().strftime('%Y%m%d_%H%M%S'))
     if args.resume_from is not None:
         cfg.resume_from = args.resume_from
-    os.environ["CUDA_VISIBLE_DEVICES"] = cfg.cuda_device
+    # os.environ["CUDA_VISIBLE_DEVICES"] = cfg.cuda_device
     distributed = False
     if "WORLD_SIZE" in os.environ:
         distributed = int(os.environ["WORLD_SIZE"]) > 1
