@@ -1,3 +1,9 @@
+# workaround
+import sys
+sys.path.append('/home/andy/ipl/CRUW-POSE')
+# workaround
+
+
 import argparse
 import json
 import os

@@ -6,7 +6,7 @@ import glob
 from tqdm import tqdm
 
 def write_video(dir, save_dir, save_name='out.mp4', fps=10):
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     frame_list = sorted(glob.glob(os.path.join(dir, '*.[jp][pn]g')))
     shape = cv2.imread(frame_list[0]).shape # delete dimension 3
     size = (shape[1], shape[0])

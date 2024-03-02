@@ -3,6 +3,10 @@ import copy
 import json
 import os
 import sys
+# workaround
+sys.path.append('/home/andy/ipl/CRUW-POSE')
+# workaround
+
 
 try:
     import apex
@@ -59,7 +63,7 @@ viz format example:
 '''
 
 def save_pred(pred, root, checkpoint_name, dataset_split):
-    with open(os.path.join('/mnt/nas_cruw_pose/file_meta.txt'), 'r') as f:
+    with open(os.path.join('/mnt/ssd3/cruw_pose_label/file_meta_merge.txt'), 'r') as f:
         lines = f.readlines()
     seq_id_to_name = {}
     for line in lines:

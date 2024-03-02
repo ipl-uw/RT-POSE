@@ -21,11 +21,11 @@ python ./tools/train_radar.py <config file>
 ```
 For example, 
 ```
-python ./tools/train_radar.py configs/cruw_pose/hr3d.py
+python ./tools/train.py configs/cruw_pose/hr3_one_hm_doppler.py
 ```
 You can optionally provide the working directory. For example,
 ```
-python ./tools/train_radar.py configs/cruw_pose/hr3d.py --work_dir work_dirs/cruw_pose_debug
+python ./tools/train.py configs/cruw_pose/hr3_one_hm_doppler.py --work_dir work_dirs/cruw_pose_debug
 ```
 
 Radar Training:

@@ -28,6 +28,7 @@ class RadarPoseNet(PoseNet):
         x = self.backbone(
                 input_features
             )
+        # we don't have a feature pyramid here
         if self.with_neck:
             x = self.neck(x)
         return x

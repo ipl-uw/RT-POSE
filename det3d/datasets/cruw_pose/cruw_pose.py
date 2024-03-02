@@ -13,7 +13,6 @@ from munch import DefaultMunch
 import collections
 import json
 from collections import defaultdict
-import open3d as o3d
 from eval_util import *
 
 @DATASETS.register_module
@@ -155,9 +154,9 @@ class CRUW_POSE_Dataset(Dataset):
 
         
     def get_cube(self, seq, rdr_frame_id):
-        arr_cube = np.load(os.path.join('/mnt/ssd3/nas_cruw_pose', self.seq_id_to_name[seq], 'DZYX_npy_f16', f'{rdr_frame_id}.npy')).astype(np.float32)
-        if self.rdr_to_real:
-            arr_cube = np.abs(arr_cube)
+        arr_cube = np.load(os.path.join('/mnt/ssd3/cruw_pose', self.seq_id_to_name[seq], 'DZYX_npy_f16', f'{rdr_frame_id}.npy')).astype(np.float32)
+        # if self.rdr_to_real:
+        #     arr_cube = np.abs(arr_cube)
         norm_vals = [float(norm_val) for norm_val in self.rad_normalize_values]
         norm_start, norm_scale = norm_vals[0], norm_vals[1]-norm_vals[0]
         # RoI selection
@@ -171,7 +170,7 @@ class CRUW_POSE_Dataset(Dataset):
         arr_cube[arr_cube < 0.] = 0.
 
         return arr_cube
-    
+
 
     def get_cube_phase(self, seq, rdr_frame_id):
         arr_cube = np.load(os.path.join('/mnt/ssd3/cruw_pose', self.seq_id_to_name[seq], 'DZYX_npy_f16_complex', f'{rdr_frame_id}.npy')).astype(np.float32)
@@ -195,7 +194,8 @@ class CRUW_POSE_Dataset(Dataset):
         dict_item['meta'] = {'seq': sample['seq'], 'frame': sample['frame'], 'rdr_frame': sample['rdr_frame']}
         dict_item['poses'] = sample['poses']
         if self.enable_radar:
-            dict_item['rdr_cube'] = self.get_cube_phase(sample['seq'], sample['rdr_frame'])
+            # dict_item['rdr_cube'] = self.get_cube_phase(sample['seq'], sample['rdr_frame'])
+            dict_item['rdr_cube'] = self.get_cube(sample['seq'], sample['rdr_frame'])
             dict_item['hm_size'] = (len(self.arr_z_cb), len(self.arr_y_cb), len(self.arr_x_cb))
         if self.enable_lidar:
             dict_item['lidar_pc'] = self.get_pc(sample['seq'], sample['frame'], self.cfg.DATASET.DIR.LIDAR)

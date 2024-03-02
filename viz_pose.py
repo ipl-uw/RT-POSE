@@ -6,6 +6,7 @@ import os
 import json
 import matplotlib.pylab as plt
 from write_video import write_video
+import cv2
 
 # Util Functions
 
@@ -21,13 +22,14 @@ def P_RC(results):
 
 
 def read_meta():
-    with open('/mnt/nas_cruw_pose/file_meta.txt', 'r') as f:
+    with open('/mnt/nas_cruw_pose_2/file_meta_outdoor.txt', 'r') as f:
         lines = f.readlines()
-    seq_id_to_name = {}
+    seq_id_to_name, seq_name_to_id = {}, {}
     for line in lines:
         seq_id, seq_name = line.strip().split(',')
         seq_id_to_name[seq_id] = seq_name
-    return seq_id_to_name    
+        seq_name_to_id[seq_name] = seq_id
+    return seq_id_to_name, seq_name_to_id 
 
 def keypoint_vis(results, gt, ax, yaw, score):
     ax.clear()
@@ -55,30 +57,34 @@ def keypoint_vis(results, gt, ax, yaw, score):
 
 
 if __name__ == '__main__':
-    seq_id_to_name = read_meta()
+    seq_id_to_name, seq_name_to_id = read_meta()
     
     # read in prediction results
-    with open('work_dirs/hr3d_one_hm_doppler/20231017_144700/epoch_90/test_prediction.json', 'r') as f:
+    with open('work_dirs/hr3d_one_hm_doppler_outdoor/20240130_105915/epoch_40/test_prediction.json', 'r') as f:
         results = json.load(f)
 
     # read in ground truth
-    with open('/mnt/nas_cruw_pose/Test.json', 'r') as f:
+    with open('/mnt/nas_cruw_pose_2/Test_outdoor.json', 'r') as f:
         gt = json.load(f)
 
-    save_root_viz_dir = 'work_dirs/hr3d_one_hm_doppler/20231017_144700/epoch_90/viz'    
-    fig = plt.figure(figsize=[12, 8])
-    ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-    ax1.set_title("Front View")
-    ax2 = fig.add_subplot(1, 2, 2, projection='3d')
-    ax2.set_title("Side View")
+    save_root_viz_dir = 'work_dirs/hr3d_one_hm_doppler_outdoor/20240130_105915/epoch_40/viz'    
+    fig = plt.figure(figsize=(12, 8))
+    ax1 = fig.add_subplot(1, 3, 1)
+    # ax1.set_title("Left Camera View")
+    ax2 = fig.add_subplot(1, 3, 2, projection='3d')
+    # ax2.set_title("Front View")
+    ax3 = fig.add_subplot(1, 3, 3, projection='3d')
+    # ax3.set_title("Side View")
     plt.tight_layout()
 
     for seq, frames in results.items():
-        save_seq_viz_dir = os.path.join(save_root_viz_dir, seq_id_to_name[str(seq)])
+        if seq  in ['2023_1014_1300', '2023_1014_1359']:
+            continue
+        save_seq_viz_dir = os.path.join(save_root_viz_dir, seq)
         os.makedirs(save_seq_viz_dir, exist_ok=True)
         for frame_rdr_frame, val in sorted(frames.items(), key=lambda x: int(x[0])):
             frame, rdr_frame = frame_rdr_frame.split('_')
-            gt_points = gt[seq][frame][0]['pose']
+            gt_points = gt[seq_name_to_id[seq]][frame][0]['pose']
             keypoints = val['keypoints']
             point_class_to_keypoints = {}
             for keypoint in keypoints:
@@ -90,9 +96,10 @@ if __name__ == '__main__':
                     key_points_for_viz.append(point_class_to_keypoints[i])
                 else:
                     key_points_for_viz.append([0, 0, 0])
-            keypoint_vis(np.array(key_points_for_viz), np.array(gt_points), ax1, -90, score)
-            keypoint_vis(np.array(key_points_for_viz), np.array(gt_points), ax2, 0, score)
+            ax1.imshow(cv2.cvtColor(cv2.imread(os.path.join('/mnt/nas_cruw_pose_2', seq, 'camera_raw', 'left', f'{frame}.png')), cv2.COLOR_BGR2RGB))
+            keypoint_vis(np.array(key_points_for_viz), np.array(gt_points), ax2, -90, score)
+            keypoint_vis(np.array(key_points_for_viz), np.array(gt_points), ax3, 0, score)
             fig.suptitle(f' {seq}/{frame}/{rdr_frame}, {score:.2f}')
             plt.savefig(os.path.join(save_seq_viz_dir, f'{frame}_{rdr_frame}.png'))
-        write_video(save_seq_viz_dir, save_root_viz_dir, f'{seq_id_to_name[str(seq)]}.mp4', 10)
+        write_video(save_seq_viz_dir, save_root_viz_dir, f'{seq}.mp4', 10)
     plt.close()
