@@ -3,7 +3,7 @@ from collections import defaultdict
 
 occ_scenes = ["2023_1014_1356", "2023_1014_1358", "2023_1014_1359"]
 
-with open('work_dirs/hr3d_one_hm_doppler_in_out_combine/20240229_143233/epoch_40/epoch_40_seq_results_test.json') as f:
+with open('work_dirs/rf3d3/20240301_211544/epoch_45/epoch_45_seq_results_test.json') as f:
     results = json.load(f)
 
 metrics = ['MPJPE', 'ABS_MPJPE', 'ABS_PJPE_0']

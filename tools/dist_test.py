@@ -77,6 +77,8 @@ def save_pred(pred, root, checkpoint_name, dataset_split):
     for seq_rdr_frame, val in pred.items():
         seq, frame, rdr_frame = seq_rdr_frame.split('/')
         result[seq_id_to_name[seq]][f'{frame}_{rdr_frame}'] = val
+        # workaround
+        # result['2024_0218_1209'][f'{frame}_{rdr_frame}'] = val
     # sort result by seq name, and sort each seq by frame
     result = dict(sorted(result.items(), key=lambda x: x[0]))
     for seq, frames in result.items():

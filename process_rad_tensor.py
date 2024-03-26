@@ -63,7 +63,7 @@ def process_seq(seq_name):
 # conv_kernel.weight.requires_grad = False
 
 if __name__ == '__main__':
-    data_root = '/mnt/nas_cruw_pose'
+    data_root = '/mnt/nas_cruw_pose_2'
     target_dir = '/mnt/ssd3/cruw_pose'
     processd_name = 'radar/npy_DZYX_complex'
     stored_dir_name = 'DZYX_npy_f16'
@@ -81,7 +81,7 @@ if __name__ == '__main__':
     with open('targetseqs.txt', 'r') as f:
         seqs = f.readlines()
     # seqs = [line.strip() for line in seqs][:36]
-    seqs = ['2023_0730_1359']
+    seqs = ['2024_0218_1209']
     print(seqs[0])
     print(seqs[-1])
     # seqs = [line.strip().split(',')[1] for line in seqs]

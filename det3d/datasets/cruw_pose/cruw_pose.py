@@ -94,6 +94,17 @@ class CRUW_POSE_Dataset(Dataset):
                     samples.append(sample)
         self.samples = samples
 
+        # workaround for infferencing a directory
+        # samples = []
+        # for frame in sorted(os.listdir('/mnt/ssd3/cruw_pose/2024_0218_1209/DZYX_npy_f16')):
+        #     sample = {}
+        #     sample['seq'] = '2024_0218_1209'
+        #     sample['frame'] = frame.split('.')[0]
+        #     sample['rdr_frame'] = frame.split('.')[0]
+        #     sample['poses'] = []
+        #     samples.append(sample)
+        # self.samples = samples
+
     def consider_roi_polar(self, roi_polar, is_reflect_to_cfg=True):
         self.list_roi_idx = []
         deg2rad = np.pi/180.
@@ -154,6 +165,8 @@ class CRUW_POSE_Dataset(Dataset):
 
         
     def get_cube(self, seq, rdr_frame_id):
+        # workaround for infferencing a directory
+        # arr_cube = np.load(os.path.join('/mnt/ssd3/cruw_pose', '2024_0218_1209', 'DZYX_npy_f16', f'{rdr_frame_id}.npy')).astype(np.float32)
         arr_cube = np.load(os.path.join('/mnt/ssd3/cruw_pose', self.seq_id_to_name[seq], 'DZYX_npy_f16', f'{rdr_frame_id}.npy')).astype(np.float32)
         # if self.rdr_to_real:
         #     arr_cube = np.abs(arr_cube)
