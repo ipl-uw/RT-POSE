@@ -1,7 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from .common import *
-from .variants import *
 
 class HighResolutionModule(nn.Module):
     def __init__(
@@ -22,7 +21,7 @@ class HighResolutionModule(nn.Module):
         )
 
         self.num_inchannels = num_inchannels
-        self.fuse_method = fuse_method # TODO: add different fuse methods
+        self.fuse_method = fuse_method
         self.num_branches = num_branches
 
         self.multi_scale_output = multi_scale_output
@@ -89,6 +88,7 @@ class HighResolutionModule(nn.Module):
                     stride=stride,
                     bias=False,
                 ),
+                # nn.BatchNorm3d(num_channels[branch_index] * block.expansion),
             )
         layers = []
         layers.append(
@@ -153,6 +153,7 @@ class HighResolutionModule(nn.Module):
                                 0,
                                 bias=False,
                             ),
+                            # nn.BatchNorm3d(num_inchannels[i]),
                         )
                     )
                 elif j == i:
@@ -173,6 +174,7 @@ class HighResolutionModule(nn.Module):
                                         1,
                                         bias=False,
                                     ),
+                                    # nn.BatchNorm3d(num_outchannels_conv3x3),
                                 )
                             )
                         else:
@@ -188,6 +190,7 @@ class HighResolutionModule(nn.Module):
                                         1,
                                         bias=False,
                                     ),
+                                    # nn.BatchNorm3d(num_outchannels_conv3x3),
                                     nn.ReLU(inplace=False),
                                 )
                             )
@@ -207,8 +210,6 @@ class HighResolutionModule(nn.Module):
             x[i] = self.branches[i](x[i])
 
         x_fuse = []
-        # TODO: add interpolation vs transposed convolution
-        # TODO: add different fusion methods
         for i in range(len(self.fuse_layers)):
             y = x[0] if i == 0 else self.fuse_layers[i][0](x[0])
             for j in range(1, self.num_branches):
@@ -302,6 +303,7 @@ class HighResolution3DNet(nn.Module):
                                 1,
                                 bias=False,
                             ),
+                            # nn.BatchNorm3d(num_channels_cur_layer[i]),
                             nn.ReLU(inplace=False),
                         )
                     )
@@ -320,6 +322,7 @@ class HighResolution3DNet(nn.Module):
                         nn.Sequential(
                             nn.GroupNorm(8, inchannels),
                             nn.Conv3d(inchannels, outchannels, 3, 2, 1, bias=False),
+                            # nn.BatchNorm3d(outchannels),
                             nn.ReLU(inplace=False),
                         )
                     )
@@ -401,18 +404,6 @@ class HRNetBackbone(object):
 
     def __call__(self):
         from ..hrnet3D_config import MODEL_CONFIGS
-        if self.backbone_cfg == 'noexchange':
-            arch_net = NoExchange(
-                MODEL_CONFIGS[self.backbone_cfg], full_res_stem=True
-            )
-
-            return arch_net
-        elif self.backbone_cfg == 'hrnet2d':
-            arch_net = HRNet(
-                MODEL_CONFIGS[self.backbone_cfg], full_res_stem=True
-            )
-
-            return arch_net
         arch_net = HighResolution3DNet(
             MODEL_CONFIGS[self.backbone_cfg], full_res_stem=True
         )

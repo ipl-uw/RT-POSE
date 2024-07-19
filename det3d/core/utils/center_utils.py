@@ -91,6 +91,14 @@ def draw_gaussian3D(heatmap, center, radius, k=1, modulation_coef=1.):
     return heatmap
 
 
+def draw_point3D(heatmap, center, radius):
+    x, y, z = int(center[0]), int(center[1]), int(center[2])
+    height, width, length = heatmap.shape[0:3]
+    if x >= 0 and x < length and y >= 0 and y < width and z >= 0 and z < height:
+        heatmap[z, y, x] = 1.0
+    return heatmap
+
+
 
 def _gather_feat(feat, ind, mask=None):
     dim  = feat.size(2)

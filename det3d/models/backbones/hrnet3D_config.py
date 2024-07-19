@@ -184,5 +184,4 @@ MODEL_CONFIGS = {
     "hr_tiny_feat32_zyx_l4": HRNET3D_Tiny_Feat32_zyx_l4,
     "hr_tiny_feat32_zyx_l4_in32": HRNET3D_Tiny_Feat32_zyx_l4_IN32,
     "hr_tiny_feat64_zyx_l4_in64": HRNET3D_Tiny_Feat64_zyx_l4_IN64
-
 }

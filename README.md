@@ -1,53 +1,74 @@
-# CRUW-POSE
-This repository is developed by [UW IPL](https://ipl-uw.github.io/) and contains the code to train human pose estimation network using 4D FMCW radar as input.
+# RT-Pose: A 4D Radar Tensor-based 3D Human Pose Estimation and Localization Benchmark (ECCV 2024)
+[[paper]()] [[dataset](https://huggingface.co/datasets/uwipl/RT-Pose)]
 
-It is under development.
 
-## Set up environment
+## Abstract
 
-```
-conda create -n cruw_pose python=3.9 -y
-conda activate cruw_pose
+Traditional methods for human localization and pose estimation (HPE), which mainly rely on RGB images as an input modality, confront substantial limitations in real-world applications due to privacy concerns. In contrast, radar-based HPE methods emerge as a promising alternative, characterized by distinctive attributes such as through-wall recognition and privacy-preserving, rendering the method more conducive to practical deployments. This paper presents a Radar Tensor-based human pose (RT-Pose) dataset and an open-source benchmarking framework. RT-Pose dataset comprises 4D radar tensors, LiDAR point clouds, and RGB images, and is collected for a total of 72k frames across 240 sequences with six different complexity level actions. The 4D radar tensor provides raw spatio-temporal information, differentiating it from other radar point cloud-based datasets. We develop an annotation process, which uses RGB images and LiDAR point clouds to accurately label 3D human skeletons. In addition, we propose HRRadarPose, the first single-stage architecture that extracts the high-resolution representation of 4D radar tensors in 3D space to aid human keypoint estimation. HRRadarPose outperforms previous radar-based HPE work on the RT-Pose benchmark. The overall HRRadarPose performance on the RT-Pose dataset, as reflected in a mean per joint position error (MPJPE) of 9.91cm, indicates the persistent challenges in achieving accurate HPE in complex real-world scenarios. 
+
+
+RT-Pose is available on [Hugging Face](https://huggingface.co/datasets/uwipl/RT-Pose).
+
+## Data Processing
+Please check [data processing](data_processing)
+
+
+## Baseline Method and Evaluations
+
+
+### Installation
+
+We recommend using conda to manage the Python environment:
+
+``` bash
+conda create -n rt_pose python=3.9 -y
+conda activate rt_pose
 pip install -r requirements-torch.txt --index-url https://download.pytorch.org/whl/cu117
 pip install -r requirements.txt
 cd det3d/ops/dcn && python setup.py build_ext --inplace
 cd ../../..
 ```
 
-## How to run the code
-### Train
-```
-python ./tools/train_radar.py <config file>
-```
-For example, 
-```
-python ./tools/train.py configs/cruw_pose/hr3_one_hm_doppler.py
-```
-You can optionally provide the working directory. For example,
-```
-python ./tools/train.py configs/cruw_pose/hr3_one_hm_doppler.py --work_dir work_dirs/cruw_pose_debug
+### Training
+To train the baseline method:
+
+```bash
+python ./tools/train.py configs/<config file>
 ```
 
-Radar Training:
-
-configs/cruw_pose/hr3d.py
-
-LiDAR training:
-
-configs/cruw_pose/vox.py
-
-### Test
+For more details about the command options, 
+```bash
+python ./tools/train.py -h
 ```
-python ./tools/dist_test.py <config file> --work_dir <working directory> --checkpoint <checkpoint file> --testset
+
+### Evaluations
+To evaluate the baseline method:
+
+```bash
+python ./tools/test.py <config file> --checkpoint <model checkpoint> --testset
 ```
-If you want to evaluate on the validation set, you just discard the `--testset` flag in your command.
+For more details about the command options, 
+```bash
+python ./tools/test.py -h
+```
 
-For more details about the command options, please execute the scripts with `-h`.
+## License
+
+RT-Pose is released under [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en).
+
+## Main Contributors
+Yuan-Hao Ho (n28081527@gs.ncku.edu.tw), Jen-Hao(Andy) Cheng(andyhci@uw.edu)
 
 
+## Citing RT-Pose
 
-### TODO
+```tex
+
+```
 
 
-#### Distributed Training
-[] Enable AMP
+## Acknowlegement
+Our project could not have been accomplished without leveraging several exceptional open-source codebases. 
+
+* [centerpoint](https://github.com/tianweiy/CenterPoint/tree/master)
+* [det3d](https://github.com/poodarchu/det3d)

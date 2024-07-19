@@ -37,30 +37,6 @@ from pathlib import Path
 from collections import defaultdict
 
 
-'''
-viz format example:
- each frame: [{
-    "obj_id": "0",
-    "obj_type": "Sedan",
-    "psr": {
-      "position": {
-        "x": 26.323807590819317,
-        "y": -4.672016669736319,
-        "z": -0.2779390447352759
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": -0.016496852089850397
-      },
-      "scale": {
-        "x": 3.280036683179418,
-        "y": 1.9069884147384841,
-        "z": 1.4570745923842519
-      }
-    }
-  }]
-'''
 
 def save_pred(pred, root, checkpoint_name, dataset_split):
     with open(os.path.join('/mnt/ssd3/cruw_pose_label/file_meta_merge.txt'), 'r') as f:
@@ -99,12 +75,7 @@ def parse_args():
     parser.add_argument(
         "--checkpoint", required=True, help="the dir to checkpoint which the model read from"
     )
-    parser.add_argument(
-        "--txt_result",
-        type=bool,
-        default=False,
-        help="whether to save results to standard KITTI format of txt type",
-    )
+
     parser.add_argument(
         "--gpus",
         type=int,
@@ -276,8 +247,6 @@ def main():
         with open(os.path.join(os.path.join(args.work_dir, checkpoint_file_name),\
                                 f"{checkpoint_file_name}_seq_results_{'test' if args.testset else 'train'}.json"), "w") as f:
             json.dump(dict(sorted(result_dict['seq_results'].items())), f, indent=2)
-    if args.txt_result:
-        assert False, "No longer support kitti"
 
 if __name__ == "__main__":
     main()

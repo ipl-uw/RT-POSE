@@ -27,17 +27,6 @@ class HRNet3D(nn.Module):
             self.with_feat_transform = True
 
     def forward(self, x_):
-        # 2D HRNet
-        if self.backbone_cfg == 'hrnet':
-            x = self.backbone(x_)
-            if self.with_feat_transform:
-                x = self.feat_transform(x)
-            _, _, h, w = x[0].size()
-            feats = x[0] # pick the highest resolution feature
-            feats = self.final_conv(feats)
-            return feats
-        
-        # 3D HRNet
         x = self.backbone(x_)
         _, _, h, w, l = x[0].size()
         feat1 = x[0]

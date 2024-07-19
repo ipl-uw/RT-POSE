@@ -6,7 +6,7 @@ from det3d.builder import build_dbsampler
 
 from det3d.core.input.voxel_generator import VoxelGenerator
 from det3d.core.utils.center_utils import (
-    draw_gaussian3D, gaussian_radius
+    draw_gaussian3D, draw_point3D, gaussian_radius
 )
 from ..registry import PIPELINES
 
@@ -201,7 +201,7 @@ class AssignLabelPose(object):
                                     gt_points_by_task[task_idx].append([class_idx, *pose_xyz])
                                     gt_classnames.append(class_name)
                 
-                draw_gaussian = draw_gaussian3D
+                draw_gaussian = draw_gaussian3D 
 
                 hms, anno_poses, inds, masks, cats = [], [], [], [], []
 
@@ -401,6 +401,8 @@ class AssignLabelPose2(object):
                         pose_gt += pose_xyz
                     gt_points_by_task[0].append(pose_gt) # hardcode the task index here, should remove this in the future version
                 draw_gaussian = draw_gaussian3D
+                # draw_gaussian = draw_point3D
+
 
                 hms, anno_poses, inds, masks, cats = [], [], [], [], []
                 for idx, task in enumerate(self.tasks):
