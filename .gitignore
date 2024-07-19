@@ -17,6 +17,6 @@ venv/
 work_dirs*
 apex
 *.npy
-*.png
+# *.png
 *.jpg
 tmp*
